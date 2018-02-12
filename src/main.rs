@@ -12,6 +12,7 @@ extern crate l20n;
 
 mod card;
 mod game;
+mod net;
 
 use log::{Level,Metadata,Record};
 use card::{TagKey,TagVal,Card};
@@ -40,7 +41,7 @@ fn main() {
     for i in 0..20
     {
         
-    let mut c = card::Card::new(10000 + i, "ok");
+    let mut c = card::Card::new(10000 + i, &format!("Card #{:03}", i));
     c.insert_tag(TagKey::Attack, TagVal::Int(7 + i as i32));
     c.insert_tag(TagKey::Health, TagVal::Int(9 + i as i32));
     c.insert_tag(TagKey::Cost, TagVal::Float(3.5 * i as f32));
@@ -55,6 +56,7 @@ fn main() {
     let player2 = game::player::HumanPlayer::new(String::from("player #2"));
     let mut board = game::GameBoard::new(42, player1, player2);
 
+    net::server::start();
     game::game_loop::run(pool, board);
 }
 
