@@ -8,7 +8,7 @@ pub trait Receiver {
 
 #[derive(Debug)]
 pub enum Message {
-
+    Simple(i32)
 }
 
 

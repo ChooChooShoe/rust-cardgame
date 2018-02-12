@@ -3,6 +3,8 @@ use std::net::{TcpStream,TcpListener};
 use std::io::{Read,Write,Error};
 use std::thread;
 
+pub struct Client{}
+
 pub fn start() -> thread::JoinHandle<()>
 {
      thread::spawn(|| {

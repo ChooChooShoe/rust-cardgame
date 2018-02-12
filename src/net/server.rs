@@ -2,25 +2,35 @@
 use std::net::{TcpStream,TcpListener};
 use std::io::{Read,Write,Error};
 use std::thread;
+use std::thread::JoinHandle;
 
-pub fn start() -> thread::JoinHandle<()>
+pub struct Server
 {
-     thread::spawn(|| {
-        let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
-        info!("Listening for client connections on port {}", 8080);
-        for stream in listener.incoming() {
-            match stream {
-                Ok(stream) => {
-                    thread::spawn(|| {
-                        on_client_connect(stream)
-                    });
-                }
-                Err(e) => {
-                    error!("Unable to connect to client: {}", e);
+    listener_handle: JoinHandle<()>,
+}
+
+impl Server {
+    pub fn new() -> Server
+    {
+        let h = thread::spawn(|| {
+            let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
+            info!("Listening for client connections on port {}", 8080);
+            for stream in listener.incoming() {
+                match stream {
+                    Ok(stream) => {
+                        thread::spawn(|| {
+                            on_client_connect(stream)
+                        });
+                    }
+                    Err(e) => {
+                        error!("Unable to connect to client: {}", e);
+                    }
                 }
             }
-        }
-    })
+        });
+
+        Server{ listener_handle: h}
+    }
 }
 
 fn on_client_connect(stream: TcpStream) {

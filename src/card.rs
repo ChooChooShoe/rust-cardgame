@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use serde::{Deserialize,Serialize};
-
-#[derive(Deserialize,Serialize,Clone)]
+use std::fmt;
+#[derive(Deserialize,Serialize,Clone,Debug)]
 pub struct Card
 {
     netid: u64,
@@ -9,6 +9,12 @@ pub struct Card
     text: String,
     tags: HashMap<TagKey,TagVal>
 
+}
+impl fmt::Display for Card
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}:{} ({} tags)", self.name,self.netid, self.tags.len())
+    }
 }
 impl Card
 {

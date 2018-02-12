@@ -1,9 +1,8 @@
 pub mod game_board;
 pub mod game_loop;
 pub mod player;
-pub mod message;
+pub mod zones;
 
 pub use game::player::Player;
 pub use game::game_board::GameBoard;
-pub use game::game_board::Zones;
-pub use game::message::Message;
+pub use game::zones::ZoneCollection;

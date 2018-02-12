@@ -21,6 +21,7 @@ pub fn run<P1: Player, P2: Player>(mut pool: CardPool, mut board: GameBoard<P1,P
         board.player2.do_turn();
     }
 }
+use std::rc::Rc;
 
 fn setup_decks<P1: Player, P2: Player>(pool : &CardPool, board: &mut GameBoard<P1,P2>)
 {
@@ -33,7 +34,7 @@ fn setup_decks<P1: Player, P2: Player>(pool : &CardPool, board: &mut GameBoard<P
     {
         let c = pool.all_cards.get(add).unwrap();//TODO remove unwrap.
 
-        board.p1_zones.deck.push(Box::new(c.clone()));
-        board.p2_zones.deck.push(Box::new(c.clone()));
+        board.p1_zones.deck.0.push(Rc::new(c.clone()));
+        board.p2_zones.deck.0.push(Rc::new(c.clone()));
     }
 }

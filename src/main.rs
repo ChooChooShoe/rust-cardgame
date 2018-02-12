@@ -56,7 +56,7 @@ fn main() {
     let player2 = game::player::HumanPlayer::new(String::from("player #2"));
     let mut board = game::GameBoard::new(42, player1, player2);
 
-    net::server::start();
+    //let (c,s) = net::create_local_clientserver();
     game::game_loop::run(pool, board);
 }
 
