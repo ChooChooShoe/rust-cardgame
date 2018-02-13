@@ -27,6 +27,11 @@ impl Card
             tags: HashMap::with_capacity(8)
         }
     }
+
+    pub fn name(&self) -> &str
+    {
+        self.name.as_str()
+    }
     
     pub fn tags(&mut self) -> &mut HashMap<TagKey,TagVal>
     {

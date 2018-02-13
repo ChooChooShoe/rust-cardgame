@@ -5,26 +5,23 @@ use game::ZoneCollection;
 use rand::{thread_rng, Rng};
 use game::player::*;
 use serde::{Serialize,Deserialize};
+use game::Zone;
 
-pub struct GameBoard<P1: Player, P2: Player>
+pub struct GameBoard
 {
     pub uid: u64,
-    pub player1: P1,
-    pub player2: P2,
-    pub p1_zones: ZoneCollection,
-    pub p2_zones: ZoneCollection,
+    pub player1: Player,
+    pub player2: Player,
 }
 
-impl<P1: Player, P2: Player> GameBoard<P1,P2>
+impl GameBoard
 {
-    pub fn new(uid: u64, player1: P1, player2: P2) -> GameBoard<P1,P2>
+    pub fn new(uid: u64, player1: Player, player2: Player) -> GameBoard
     {
         GameBoard {
             uid,
             player1,
             player2,
-            p1_zones: ZoneCollection::new(1),
-            p2_zones: ZoneCollection::new(2),
         }
     }
 
@@ -37,5 +34,11 @@ impl<P1: Player, P2: Player> GameBoard<P1,P2>
 
         //let mut b = self.p2_zones.deck.as_mut_slice();
         //rng.shuffle(&mut b);
+    }
+
+    pub fn run_mulligan(&mut self)
+    {
+        self.player1.draw_x_cards(5);
+        self.player2.draw_x_cards(5);
     }
 }

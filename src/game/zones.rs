@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use card::Card;
 use std::rc::Rc;
 use std::fmt;
+use std::cell::RefCell;
 
 const DEF_BANISHED_SIZE : usize = 0;
 const MAX_CARDS_IN_BATTLEFIELD : usize = 5;
@@ -12,83 +13,90 @@ const MAX_CARDS_IN_HAND : usize = 10;
 
 pub trait Zone
 {
-    fn draw_top_1(&self) -> Option<Rc<Card>>;
-    fn draw_bottom_1(&self) -> Option<Rc<Card>>;
-    fn draw_random_1(&self) -> Option<Rc<Card>>;
-    
-    //Draw up to x cards from the top of the stack.
-    fn draw_top_x(&self, x: usize) -> Vec<Rc<Card>>;
-    //Draw up to x cards from the bottom of the stack.
-    fn draw_bottom_x(&self, x: usize) -> Vec<Rc<Card>>;
-    //Draw up to x cards at random from the stack.
-    fn draw_random_x(&self, x: usize) -> Vec<Rc<Card>>;
+    fn add_card(&mut self, RefCell<Card>, Location);
+    fn add_cards(&mut self, Vec<RefCell<Card>>, Location);
+    fn take_card(&mut self, Location) -> Option<RefCell<Card>>;
+    fn take_x_cards(&mut self, x: usize, Location) -> Vec<Option<RefCell<Card>>>;
 }
+
+pub enum Location {Top,Bottom,Random}
+
+impl Location
+{
+    // Insert value at this location
+    pub fn insert<T>(&self, vec: &mut Vec<T>, val: T) 
+    {
+        match self {
+            &Location::Top => vec.push(val),
+            &Location::Bottom => vec.insert(0,val),
+            &Location::Random => vec.push(val),
+        }
+    }
+    // Remove value at this location
+    pub fn remove<T>(&self, vec: &mut Vec<T>) -> Option<T>
+    {
+        match self {
+            &Location::Top => vec.pop(),
+            &Location::Bottom => Some(vec.remove(0)),
+            &Location::Random => vec.pop(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ZoneCollection
 {
     pub player: u64,
-    pub banished: SimpleZone,
-    pub battlefield: SimpleZone,
-    pub deck: SimpleZone,
-    pub limbo: SimpleZone,
-    pub graveyard: SimpleZone,
-    pub hand: SimpleZone,
+    pub banished: Vec<RefCell<Card>>,
+    pub battlefield: Vec<RefCell<Card>>,
+    pub deck: Vec<RefCell<Card>>,
+    pub limbo: Vec<RefCell<Card>>,
+    pub graveyard: Vec<RefCell<Card>>,
+    pub hand: Vec<RefCell<Card>>,
 }
 
-#[derive(Debug)]
-pub struct SimpleZone(pub Vec<Rc<Card>>);
+impl Zone for Vec<RefCell<Card>> {
 
-impl SimpleZone
-{
-    fn new() -> SimpleZone
+    fn add_card(&mut self, card: RefCell<Card>, location: Location)
     {
-        SimpleZone(Vec::new())
+        location.insert(self, card)
     }
-    fn with_capacity(size: usize) -> SimpleZone
+
+    fn add_cards(&mut self, cards: Vec<RefCell<Card>>, location: Location)
     {
-        SimpleZone(Vec::with_capacity(size))
+        for c in cards
+        {
+            location.insert(self, c);
+        }
     }
-    pub fn exile_all() {}
-}
-impl Zone for SimpleZone {
-    
-    fn draw_top_1(&self) -> Option<Rc<Card>>
+
+    fn take_card(&mut self, location: Location) -> Option<RefCell<Card>>
     {
-        None
+        location.remove(self)
     }
-    fn draw_bottom_1(&self) -> Option<Rc<Card>>
+
+    fn take_x_cards(&mut self, x: usize, location: Location) -> Vec<Option<RefCell<Card>>>
     {
-        None
-    }
-    fn draw_random_1(&self) -> Option<Rc<Card>>{
-        None
-    }
-    
-    //Draw up to x cards from the top of the stack.
-    fn draw_top_x(&self, x: usize) -> Vec<Rc<Card>>{
-        Vec::new()
-    }
-    //Draw up to x cards from the bottom of the stack.
-    fn draw_bottom_x(&self, x: usize) -> Vec<Rc<Card>>{
-        Vec::new()
-    }
-    //Draw up to x cards at random from the stack.
-    fn draw_random_x(&self, x: usize) -> Vec<Rc<Card>>{
-        Vec::new()
+        let mut vec = Vec::with_capacity(x);
+        for _ in 0..x {
+            vec.push(location.remove(self));
+        }
+        vec
     }
 }
+
 
 impl ZoneCollection
 {
     pub fn new(player : u64) -> ZoneCollection {
         ZoneCollection {
             player,
-            banished: SimpleZone::new(),
-            battlefield: SimpleZone::new(),
-            deck: SimpleZone::with_capacity(DEF_DECK_SIZE),
-            limbo: SimpleZone::with_capacity(DEF_LIMBO_SIZE),
-            graveyard: SimpleZone::with_capacity(DEF_GRAVEYARD_SIZE),
-            hand: SimpleZone::new(),
+            banished: Vec::new(),
+            battlefield: Vec::new(),
+            deck: Vec::with_capacity(DEF_DECK_SIZE),
+            limbo: Vec::with_capacity(DEF_LIMBO_SIZE),
+            graveyard: Vec::with_capacity(DEF_GRAVEYARD_SIZE),
+            hand: Vec::new(),
         }
     }
 }

@@ -16,6 +16,8 @@ mod net;
 
 use log::{Level,Metadata,Record};
 use card::{TagKey,TagVal,Card};
+use game::Player;
+use game::player;
 use std::collections::HashMap;
 use std::time::{Instant,Duration};
 use std::io;
@@ -52,8 +54,8 @@ fn main() {
     write_test(&pool).expect("Unable to write to card database");
     read_test().expect("Unable to load card database");
 
-    let player1 = game::player::HumanPlayer::new(String::from("player #1"));
-    let player2 = game::player::HumanPlayer::new(String::from("player #2"));
+    let player1 = Player::new(String::from("player #1"), player::Controller::CmdLinePlayer());
+    let player2 = Player::new(String::from("player #2"), player::Controller::CmdLinePlayer());
     let mut board = game::GameBoard::new(42, player1, player2);
 
     //let (c,s) = net::create_local_clientserver();
