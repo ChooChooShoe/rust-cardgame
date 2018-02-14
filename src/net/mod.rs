@@ -10,6 +10,11 @@ use std::sync::Mutex;
 
 pub enum NetworkMode {None,ClientOnly,ServerOnly,ClientServer}
 
+pub trait Networked
+{
+    fn netid(&self) -> u64;
+}
+
 pub fn create_local_client() -> Client 
 {
     Client{}

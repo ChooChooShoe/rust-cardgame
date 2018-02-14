@@ -1,23 +1,24 @@
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
-extern crate bitflags;
-#[macro_use]
 extern crate log;
 
 extern crate serde;
 extern crate serde_json;
 extern crate rand;
 extern crate l20n;
+extern crate bitflags;
+extern crate docopt;
 
 mod card;
 mod game;
 mod net;
+mod player;
 
+use player::Controller;
 use log::{Level,Metadata,Record};
 use card::{TagKey,TagVal,Card};
-use game::Player;
-use game::player;
+use player::Player;
 use std::collections::HashMap;
 use std::time::{Instant,Duration};
 use std::io;
@@ -54,12 +55,13 @@ fn main() {
     write_test(&pool).expect("Unable to write to card database");
     read_test().expect("Unable to load card database");
 
-    let player1 = Player::new(String::from("player #1"), player::Controller::CmdLinePlayer());
-    let player2 = Player::new(String::from("player #2"), player::Controller::CmdLinePlayer());
+    let player1 = Player::new(1,String::from("player #1"));
+    let player2 = Player::new(2,String::from("player #2"));
     let mut board = game::GameBoard::new(42, player1, player2);
 
     //let (c,s) = net::create_local_clientserver();
     game::game_loop::run(pool, board);
+    println!("Program exit.");
 }
 
 fn write_test(card_collection: &card::CardPool) -> io::Result<()>
@@ -117,20 +119,20 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            //println!(
-            //    "{} [{}] [{}] {}",
-            //    Utc::now(),
-            //    record.target(),
-            //    record.level().to_string(),
-            //    //.module_path().unwrap_or_default(),
-            //    record.args());
             println!(
-                "{}:{} [{}] {}",
-                record.file().unwrap_or_default(),
-                record.line().unwrap_or_default(),
+                "[{}] {}",
+                //Utc::now(),
+                //record.target(),
                 record.level().to_string(),
-                record.args()
-            );
+                //.module_path().unwrap_or_default(),
+                record.args());
+            //println!(
+            //    "{}:{} [{}] {}",
+            //    record.file().unwrap_or_default(),
+            //    record.line().unwrap_or_default(),
+            //    record.level().to_string(),
+            //    record.args()
+            //);
         }
     }
 

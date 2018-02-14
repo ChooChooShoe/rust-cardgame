@@ -1,55 +1,41 @@
 use std::fmt::Debug;
 use std::io;
 use serde::{Serialize,Deserialize};
+use net;
 
 use card::Card;
 use game::ZoneCollection;
+use player::controller::Controller;
 use game::zones::{Zone,Location};
 
+// This is the players reprsentation in the game.
+// Player owns the cards and the moves.
 pub struct Player
 {
+    pub netid: u64,
     pub name: String, 
     pub zones: ZoneCollection,
-    pub pc: Controller
 }
 
-pub enum Controller
+impl net::Networked for Player
 {
-    CmdLinePlayer(),
-    AiPlayer(u32),
+    fn netid(&self) -> u64 { self.netid }
 }
-
 
 impl Player
 {
-    pub fn new(name: String, pc: Controller) -> Player {
-        Player {name, zones: ZoneCollection::new(42), pc}
+    pub fn new(netid: u64, name: String) -> Player {
+        Player { netid, name, zones: ZoneCollection::new(42) }
     }
 
     pub fn name(&self) -> &str { self.name.as_str() }
 
-    pub fn do_turn(&mut self) -> Option<u64>
+    pub fn do_turn(&mut self, turn_count: usize) -> Option<u64>
     {
-        let mut input = String::new();
-        match io::stdin().read_line(&mut input) {
-            Ok(n) => {
-                let cmds: Vec<_> = input.split(" ").collect();
-                self.handle_user_input(cmds, n);
-            }
-            Err(error) => println!("error: {}", error),
-        }
+        info!("Player '{}' turn {} start.", self.name, turn_count);
+        //self.pc.handle_user_input(self);
         None
     }
-
-    fn handle_user_input(&mut self, input: Vec<&str>, bytes_read: usize)
-    {
-        println!("{} bytes read", bytes_read);
-        println!("{:?}", &input);
-
-            let x = 1;
-            self.draw_x_cards(x);
-    }
-
 
 
     pub fn zones(&self) -> &ZoneCollection {

@@ -1,4 +1,5 @@
-use game::{Player, GameBoard};
+use game::GameBoard;
+use player::Player;
 use card::CardPool;
 use game::Zone;
 use game::ZoneCollection;
@@ -18,13 +19,12 @@ pub fn run(mut pool: CardPool, mut board: GameBoard)
     //println!("\n\nCardPool:  {}", serde_json::to_string(&pool).unwrap());
     //println!("\n\nLocale:    {:?}", &locale);
     //println!("\n\nGameBoard: {:?}", serde_json::to_string(&board).unwrap());
-
-    loop
+    
+    for turn_count in 1..100
     {
-        info!("Start Player #1's turn.");
-        board.player1.do_turn();
-        info!("Start Player #2's turn.");
-        board.player2.do_turn();
+        //let x = board.player_mut(1);
+        board.controller1.do_turn(&mut board.player1, turn_count);
+        board.controller2.do_turn(&mut board.player2, turn_count);
     }
 }
 use std::rc::Rc;
