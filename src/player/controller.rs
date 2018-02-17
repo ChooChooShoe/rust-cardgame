@@ -5,7 +5,7 @@ use net::Networked;
 
 pub enum Controller
 {
-    CmdLinePlayer(u64),
+    CmdLinePlayer(usize),
     AiPlayer(u64),
 }
 
@@ -13,14 +13,19 @@ impl Networked for Controller
 {
     fn netid(&self) -> u64 {
         match self {
-            &Controller::CmdLinePlayer(netid) => netid,
-            &Controller::AiPlayer(netid) => netid,
+            &Controller::CmdLinePlayer(netid) => netid as u64,
+            &Controller::AiPlayer(netid) => netid as u64,
         }
     }
 }
 
 impl Controller
 {
+    pub fn new(pidx: usize) -> Controller
+    {
+        Controller::CmdLinePlayer(pidx)
+    }
+    
     pub fn on_game_start() -> Result<(),()>
     {
         Ok(())

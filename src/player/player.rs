@@ -12,20 +12,20 @@ use game::zones::{Zone,Location};
 // Player owns the cards and the moves.
 pub struct Player
 {
-    pub netid: u64,
+    pub pidx: usize,
     pub name: String, 
     pub zones: ZoneCollection,
 }
 
 impl net::Networked for Player
 {
-    fn netid(&self) -> u64 { self.netid }
+    fn netid(&self) -> u64 { 0x100 + self.pidx as u64 }
 }
 
 impl Player
 {
-    pub fn new(netid: u64, name: String) -> Player {
-        Player { netid, name, zones: ZoneCollection::new(42) }
+    pub fn new(pidx: usize, name: String) -> Player {
+        Player { pidx, name, zones: ZoneCollection::new(42) }
     }
 
     pub fn name(&self) -> &str { self.name.as_str() }

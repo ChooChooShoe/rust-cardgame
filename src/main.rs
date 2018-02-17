@@ -8,7 +8,6 @@ extern crate serde_json;
 extern crate rand;
 extern crate l20n;
 extern crate bitflags;
-extern crate docopt;
 
 mod card;
 mod game;

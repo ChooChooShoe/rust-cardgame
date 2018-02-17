@@ -1,4 +1,4 @@
-use docopt::Docopt;
+//use docopt::Docopt;
 
 const USAGE: &'static str = "
 Naval Fate.
@@ -31,7 +31,7 @@ struct Args {
 }
 
 pub fn main() {
-    let argv = || vec!["ship", "two", "-h"];
-    let args: Args = Docopt::new(USAGE).and_then(|d| d.argv(argv().into_iter()).deserialize()).unwrap_or_else(|e| e.exit());
-    println!("{:?}", args);
+    //let argv = || vec!["ship", "two", "-h"];
+    //let args: Args = Docopt::new(USAGE).and_then(|d| d.argv(argv().into_iter()).deserialize()).unwrap_or_else(|e| e.exit());
+    //println!("{:?}", args);
 }
