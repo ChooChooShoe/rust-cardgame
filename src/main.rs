@@ -13,6 +13,7 @@ mod card;
 mod game;
 mod net;
 mod player;
+mod utils;
 
 use player::Controller;
 use log::{Level,Metadata,Record};
@@ -69,7 +70,8 @@ fn write_test(card_collection: &card::CardPool) -> io::Result<()>
         Ok(()) => {info!("Created 'output' directory.")},
         Err(e) => {
             if e.kind() == ErrorKind::AlreadyExists {
-                info!("The 'output' directory already exists.")
+                info!("The 'output' directory already exists.");
+                return Ok(());
             } else {
                 warn!("Could not create 'output' directory. Error: {}", e)
             }
@@ -118,13 +120,18 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            println!(
+            if record.level() == Level::Info {
+                println!("{}",record.args());
+            }
+            else {
+                println!(
                 "[{}] {}",
                 //Utc::now(),
                 //record.target(),
                 record.level().to_string(),
                 //.module_path().unwrap_or_default(),
                 record.args());
+            }
             //println!(
             //    "{}:{} [{}] {}",
             //    record.file().unwrap_or_default(),

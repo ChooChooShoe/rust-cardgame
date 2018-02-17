@@ -8,7 +8,6 @@ use player::Player;
 use serde::{Serialize,Deserialize};
 use game::Zone;
 use net::Networked;
-use game::game_loop::StepResult;
 
 pub struct GameBoard
 {
@@ -75,16 +74,5 @@ impl GameBoard
             1 => &mut self.player1,
             _ => &mut self.player2,
         }
-    }
-
-    pub fn do_step_before_turn(&mut self) -> StepResult
-    {
-        StepResult::Empty()
-    }
-
-    pub fn do_step_draw(&mut self) -> StepResult
-    {
-        self.active_player_mut().draw_x_cards(1);
-        StepResult::Ok()
     }
 }
