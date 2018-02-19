@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use card::Card;
+use entity::Card;
 use std::rc::Rc;
 use std::fmt;
 use std::cell::RefCell;

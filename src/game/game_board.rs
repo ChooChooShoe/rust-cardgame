@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use card::Card;
+use entity::Card;
 use player::Controller;
 use game::ZoneCollection;
 //use tags::*;

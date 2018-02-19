@@ -11,3 +11,6 @@
 
 /.vscode/
 /output/
+
+*.iml
+.idea/

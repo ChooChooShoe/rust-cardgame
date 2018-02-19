@@ -3,7 +3,7 @@ use std::io;
 use serde::{Serialize,Deserialize};
 use net;
 
-use card::Card;
+use entity::Card;
 use game::ZoneCollection;
 use player::controller::Controller;
 use game::zones::{Zone,Location};

@@ -1,7 +1,7 @@
 use game::GameBoard;
 use player::Player;
 use player::Controller;
-use card::CardPool;
+use entity::card::CardPool;
 use game::Zone;
 use game::ZoneCollection;
 use game::zones::Location;
@@ -12,6 +12,9 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use game::{MAX_PLAYER_COUNT,MAX_TURNS};
 use utils::timer::Timer;
+use tarpc::sync::{client, server};
+use tarpc::sync::client::ClientExt;
+use tarpc::util::{FirstSocketAddr, Never};
 
 fn run_send_recv_player(pidx: usize, sender: mpsc::Sender<Request>, recv: mpsc::Receiver<Response>) {
     
@@ -118,7 +121,7 @@ fn run_game_start(channels: &mut Vec<Channel>, timer: Timer){
                     Request::ReadyCheck() => {
                         info!("ReadyCheck: Player #{} is ready", chan.pidx);
                     }
-                    _ => {warn!("ReadyCheck: Unexpected recv, got '{:?}' needed 'ReadyCheck'",req)}
+                    _ => {warn!("ReadyCheck: Unexpected recv, got '{:?}' needed 'ReadyCheck'", req)}
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {

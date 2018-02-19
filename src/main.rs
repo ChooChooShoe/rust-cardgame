@@ -1,15 +1,21 @@
+#![feature(plugin, use_extern_macros)]
+#![plugin(tarpc_plugins)]
+
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate tarpc;
 
 extern crate serde;
 extern crate serde_json;
+extern crate fluent;
 extern crate rand;
-extern crate l20n;
-extern crate bitflags;
+extern crate futures;
+extern crate tokio_core;
 
-mod card;
+mod entity;
 mod game;
 mod net;
 mod player;
@@ -17,13 +23,14 @@ mod utils;
 
 use player::Controller;
 use log::{Level,Metadata,Record};
-use card::{TagKey,TagVal,Card};
+use entity::card::{TagKey,TagVal,Card,CardPool};
 use player::Player;
 use std::collections::HashMap;
 use std::time::{Instant,Duration};
 use std::io;
 use std::io::ErrorKind;
 use std::fs::File;
+use std::env;
 
 fn main() {
     log::set_logger(&SIMPLE_LOGGER).unwrap();
@@ -31,20 +38,12 @@ fn main() {
     
     info!("Card Game Engine");
 
-    println!("Sizeof: Card {}",std::mem::size_of::<card::Card>());
-    println!("Sizeof: TagKey {}",std::mem::size_of::<card::TagKey>());
-    println!("Sizeof: TagVal {}",std::mem::size_of::<card::TagVal>());
-    println!("Sizeof: i32 {}",std::mem::size_of::<i32>());
-    println!("Sizeof: f32 {}",std::mem::size_of::<f32>());
-    println!("Sizeof: f64 {}",std::mem::size_of::<f64>());
-    println!("Sizeof: bool {}",std::mem::size_of::<bool>());
-
-    let mut pool = card::CardPool::new();
+    let mut pool = entity::card::CardPool::new();
 
     for i in 0..20
     {
         
-    let mut c = card::Card::new(10000 + i, &format!("Card #{:03}", i));
+    let mut c = Card::new(10000 + i, &format!("Card #{:03}", i));
     c.insert_tag(TagKey::Attack, TagVal::Int(7 + i as i32));
     c.insert_tag(TagKey::Health, TagVal::Int(9 + i as i32));
     c.insert_tag(TagKey::Cost, TagVal::Float(3.5 * i as f32));
@@ -60,11 +59,24 @@ fn main() {
     let mut board = game::GameBoard::new(42, player1, player2);
 
     //let (c,s) = net::create_local_clientserver();
-    game::game_loop::run(pool, board);
+    //game::game_loop::run(pool, board);
+    let mut client = false;
+    for argument in env::args() {
+        println!("Args: {}", argument);
+        if argument == "client" {
+            client = true;
+        }
+    }
+
+    if client {
+        net::gameserver::create_client();
+    } else {
+        net::gameserver::create_server();
+    }
     println!("Program exit.");
 }
 
-fn write_test(card_collection: &card::CardPool) -> io::Result<()>
+fn write_test(card_collection: &CardPool) -> io::Result<()>
 {
     match std::fs::create_dir("./output/"){
         Ok(()) => {info!("Created 'output' directory.")},
@@ -107,7 +119,7 @@ fn read_test() -> io::Result<()>
 }
 
 
-static SIMPLE_LOGGER: SimpleLogger = SimpleLogger {level: Level::Info};
+static SIMPLE_LOGGER: SimpleLogger = SimpleLogger {level: Level::Debug};
 
 struct SimpleLogger {
     level: Level
