@@ -1,0 +1,7 @@
+[package]
+name = "chat-commands"
+version = "0.1.0"
+authors = ["Timothy <timothy.durbano@gmail.com>"]
+
+[dependencies]
+log = "0.4.1"
