@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
 use std::fmt;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -77,7 +76,6 @@ impl Card {
         }
     }
 }
-const UNKNOWN_SID_NETID: u64 = 7;
 
 pub struct CardPool {
     pub all_cards: HashMap<String, Card>,

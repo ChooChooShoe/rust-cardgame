@@ -1,0 +1,6 @@
+[package]
+name = "chat-commands"
+version = "0.1.0"
+authors = ["Timothy Durbano <timothy.durbano@gmail.com>"]
+
+[dependencies]
