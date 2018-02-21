@@ -2,27 +2,12 @@
 mod tests {
     use super::*;
 
-    pub fn command_from_vec(vec: Vec<&str>) -> Result<CommandLine,()> {
+    pub fn command_from_vec(vec: Vec<&str>) -> CommandLine {
         let mut args = Vec::with_capacity(vec.len());
         for s in vec {
             args.push(s.to_string());
         }
-        Ok(CommandLine { args })
-    }
-    #[derive(Debug,Eq,PartialEq)]
-    struct ex;
-    impl CommandCentre for ex{
-
-        // Gets general help
-        fn do_ok(&self, alias: &str) -> Result {Err(CmdError::NoPermission())}
-        fn do_help(&self, alias: &str) -> Result {Err(CmdError::NoPermission())}
-        // Gets help for given command.
-        fn do_help_command(&self, alias: &str, command: &str) -> Result {Err(CmdError::NoPermission())}
-        // Gets help at page #
-        fn do_help_page(&self, alias: &str, page: usize) -> Result {Err(CmdError::NoPermission())}
-
-        // Gets general help
-        fn do_msg(&self, alias: &str, to: &str, message: &str) -> Result {Err(CmdError::NoPermission())}
+        CommandLine { args }
     }
 
     #[test]
@@ -176,8 +161,6 @@ mod tests {
     }
     #[test]
     fn test_macro() {
-        let ex = ex {};
-        assert_eq!(ex.run(vec!("ok")), Err(CmdError::NoPermission()));
     }
 }
 
@@ -198,7 +181,7 @@ const SPACE: char = ' ';
 const CMD_SLASH: char = '/';
 
 impl CommandLine {
-    pub fn from_line(input_line: &str) -> Result<CommandLine,()> {
+    pub fn from_line(input_line: &str) -> CommandLine {
         let line = input_line.trim();
         let mut args = Vec::new();
         let mut begin = 0;
@@ -263,11 +246,10 @@ impl CommandLine {
             }
         }
         //assert_eq!(state, State::Normal);
-        Ok(CommandLine { args })
+        CommandLine { args }
     }
 }
 
-use std::fmt;
 impl fmt::Display for CommandLine  {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut line = String::new();
@@ -301,7 +283,7 @@ pub type Result = std::result::Result<String, CmdError>;
 pub enum CmdError {
     NothingGiven(),
     NotFound(String),
-    TooManyArgs(usize,usize),
+    TooManyArgs{needs: usize, got: usize},
     NotEnoughArgs{needs: usize, got: usize},
     UnknownArg(String),
     MissingArg(String),
@@ -315,7 +297,7 @@ impl fmt::Display for CmdError {
         match self {
             &CmdError::NothingGiven() => write!(f, "No command given."),
             &CmdError::NotFound(ref x) => write!(f, "Unknown command: {}.", x),
-            &CmdError::TooManyArgs(ref x, ref y) => write!(f, "To many arguments given: needs {} got {}.", x, y),
+            &CmdError::TooManyArgs{needs,got} => write!(f, "To many arguments given: needs {} got {}.", needs, got),
             &CmdError::NotEnoughArgs{needs,got} => write!(f, "Not Enough arguments given: needs {} got {}.", needs, got),
             &CmdError::UnknownArg(ref x) => write!(f, "Unknown argument '{}'.", x),
             &CmdError::MissingArg(ref x) => write!(f, "Required argument '{}' is missing.", x),
@@ -350,24 +332,29 @@ Alises:
 /help   /?  /lookup
 ";
 
+//old
+#[allow(unused_macros)]
 macro_rules! create_run_function {
     ($run_name:ident, $do_name:ident, $req:expr, $opt:expr) => {
-        fn $do_name(&self, alias: &str) -> Result;
+        fn $do_name(&self, alias: &str, args: Vec<&str>) -> Result;
+
         fn $run_name(&self, arg_count: usize, args: Vec<&str>) -> Result {
-            debug!("Command {} run.",stringify!($func_name));
+            debug!("Command {} run.", stringify!($func_name));
             match arg_count {
                 0 => self.$do_name(args[0]),
-                //1 => {
-                    //self.do_$do_name(args[0], args[1])
-                //},
-                _ => Err(CmdError::TooManyArgs(1, arg_count)),
+                1 => self.$do_name(args[0], args[1]),
+                2 => self.$do_name(args[0], args[1], args[2]),
+                _ => Err(CmdError::TooManyArgs{needs: 1, got: arg_count}),
             }
         }
-    }
+    };
 }
 
 macro_rules! make_run {
-    ($( $command_alias:pat => $run_func:ident ),*) => {
+    ( $( $command_alias:tt $(, $echo:tt)*  => $run_func:ident ),* ) => {
+    $(
+        fn $run_func(&self, arg_count: usize, args: Vec<&str>) -> Result;
+    )*
     fn run(&self, args: Vec<&str>) -> Result {
         if args.len() == 0 {
             Err(CmdError::NothingGiven())
@@ -380,20 +367,36 @@ macro_rules! make_run {
                 _ => { Err(CmdError::NotFound(args[0].to_string())) }
             }
         }
-    }
-    };
+    }};
 }
 
 pub trait CommandCentre {
     
-    create_run_function!(run_ok, do_ok, 0, 1);
+    //create_run_function!(run_ok, do_ok, 6, 0);
 
     make_run!(
-        "help" => run_help,
-        "?" => run_help,
+        "help","?" => run_help,
         "play" => run_play,
-        "ok" => run_ok
+        "msg" => run_msg
     );
+}
+
+struct CmdImp;
+
+impl CmdImp {
+    // Gets general help
+    fn do_help(&self, alias: &str) -> Result {Err(CmdError::NoPermission())}
+    // Gets help for given command.
+    fn do_help_command(&self, alias: &str, command: &str) -> Result {Err(CmdError::NoPermission())}
+    // Gets help at page #
+    fn do_help_page(&self, alias: &str, page: usize) -> Result {Err(CmdError::NoPermission())}
+
+    // Gets general help
+    fn do_msg(&self, alias: &str, to: &str, message: &str) -> Result {Err(CmdError::NoPermission())}
+}
+
+impl CommandCentre for CmdImp {
+    
     //fn run(&self, args: Vec<&str>) -> Result {
     //    let len = args.len();
     //    if len == 0 {
@@ -420,7 +423,7 @@ pub trait CommandCentre {
                     Err(_) => self.do_help_command(args[0], args[1]),
                 }
             },
-            _ => Err(CmdError::TooManyArgs(1, arg_count)),
+            _ => Err(CmdError::TooManyArgs{needs: 1, got: arg_count}),
         }
 
     }
@@ -430,21 +433,19 @@ pub trait CommandCentre {
     }
     fn run_msg(&self, arg_count: usize, args: Vec<&str>) -> Result {
         trace!("Command 'msg' run.");
+
+        match args[0] {
+            "ok" => {},
+            "5fff" | "dgg" => {},
+            _ => { }
+        }
+
         match arg_count {
             0|1 => Err(CmdError::NotEnoughArgs{needs: 2, got: 1}),
             2 => {
                 self.do_msg(args[0], args[1], args[2])
             },
-            _ => Err(CmdError::TooManyArgs(1, arg_count)),
+            _ => Err(CmdError::TooManyArgs{needs: 1, got: arg_count}),
         }
     }    
-    // Gets general help
-    fn do_help(&self, alias: &str) -> Result;
-    // Gets help for given command.
-    fn do_help_command(&self, alias: &str, command: &str) -> Result;
-    // Gets help at page #
-    fn do_help_page(&self, alias: &str, page: usize) -> Result;
-
-    // Gets general help
-    fn do_msg(&self, alias: &str, to: &str, message: &str) -> Result;
 }
