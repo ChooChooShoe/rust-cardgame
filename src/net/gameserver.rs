@@ -8,11 +8,11 @@ use tarpc;
 use tokio_core::reactor;
 use tarpc::util::{FirstSocketAddr, Never};
 
-//use tarpc::sync::{client, server};
+use tarpc::sync::server;
 //use tarpc::sync::client::ClientExt;
 
 use futures::Future;
-use tarpc::future::{client, server};
+use tarpc::future::client;
 use tarpc::future::client::ClientExt;
 
 service! {
@@ -22,9 +22,8 @@ service! {
 
 #[derive(Clone)]
 pub struct GameServer;
-impl FutureService for GameServer {
+impl SyncService for GameServer {
     
-    type HelloFut = Result<String, Never>;
     fn hello(&self, name: String) -> Result<String, Never> {
         if name.len() > 6{
             Ok(format!("Hello, {}!", name.split_at(6).0.to_string()))
@@ -33,8 +32,7 @@ impl FutureService for GameServer {
         }
     }
 
-    type VersionFut = Result<String, Never>;
-    fn version(&self) -> Self::VersionFut {
+    fn version(&self) -> Result<String, Never> {
         Ok(String::from("0.1.1"))
     }
 }
@@ -56,19 +54,19 @@ pub fn create_sync()
 
 pub fn create_server() {
     info!("Create Server");
-    //let handle = GameServer.listen("localhost:36650", server::Options::default()).unwrap();
-    //handle.addr();
-    //handle.run();
+    let handle = GameServer.listen("localhost:12512", server::Options::default()).unwrap();
+    handle.addr();
+    handle.run();
 
-    let mut reactor = reactor::Core::new().unwrap();
-    let (handle, server) = GameServer.listen(
-        "localhost:12512".first_socket_addr(),
-        &reactor.handle(),
-        server::Options::default())
-        .unwrap();
+    //let mut reactor = reactor::Core::new().unwrap();
+    //let (handle, server) = GameServer.listen(
+    //    "localhost:12512".first_socket_addr(),
+    //    &reactor.handle(),
+    //    server::Options::default())
+    //    .unwrap();
 
     //reactor.handle().spawn(server);
-    reactor.run(server).unwrap();
+    //reactor.run(server).unwrap();
     
 }
 pub fn create_client() {
@@ -81,9 +79,10 @@ pub fn create_client() {
     
     let mut reactor = reactor::Core::new().unwrap();
     let options = client::Options::default().handle(reactor.handle());
-    reactor.run(FutureClient::connect("localhost:12512".first_socket_addr(), options)
-        .map_err(tarpc::Error::from)
-        .and_then(|client| client.hello("Mom".to_string()))
-        .map(|resp| println!("{}", resp)))
-        .unwrap();
+
+    let client = FutureClient::connect("localhost:12512".first_socket_addr(), options);
+        //.map_err(tarpc::Error::from)
+        //.and_then(|client| client.hello("Mom".to_string()))
+        //.map(|resp| println!("{}", resp));
+    reactor.run(client).unwrap();
 }
