@@ -2,12 +2,18 @@
 #[macro_use]
 extern crate log;
 
+mod permission;
 mod parser;
 
 //use clap::{Arg, App, SubCommand,AppSettings,ArgSettings};
 use std::time::{Duration,Instant};
 use parser::*;
 
+
+fn callback(cmd: AppCommand) -> CmdResult {
+    println!("cmd run");
+    Err(CmdError::Generic("not implmented".to_string()))
+}
 fn main() {
     let t = Instant::now();
 
@@ -20,7 +26,13 @@ fn main() {
     centre.add(
         AppCommand::new("position")
             .alias("pos")
-            .alias("whereami")
+            .execute(callback)
+    );
+    centre.add(
+        AppCommand::new("draw")
+            .alias("pos")
+            .execute(callback)
+            .arg(Arg::new("num", 0))
     );
     centre.add(
         AppCommand::new("help")

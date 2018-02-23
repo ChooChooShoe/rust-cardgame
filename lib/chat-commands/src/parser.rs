@@ -144,34 +144,123 @@ const EXAMPLE: &'static str = "
 
 ";
 
+use std::result;
+pub type CmdResult = result::Result<String, CmdError>;
 
+#[derive(Debug, Clone,Eq,PartialEq)]
+pub enum CmdError {
+    NothingGiven(),
+    NotFound(String),
+    TooManyArgs{needs: usize, got: usize},
+    NotEnoughArgs{needs: usize, got: usize},
+    InvalidArg{got: String, reason: String},
+    UnknownArg(String),
+    MissingArg(String),
+    UnexpectedArg(String,String),
+    Generic(String),
+    NoPermission(),
+}
+
+impl fmt::Display for CmdError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &CmdError::NothingGiven() => write!(f, "No command given."),
+            &CmdError::NotFound(ref x) => write!(f, "Unknown command: {}.", x),
+            &CmdError::TooManyArgs{needs,got} => write!(f, "To many arguments given: needs {} got {}.", needs, got),
+            &CmdError::NotEnoughArgs{needs,got} => write!(f, "Not Enough arguments given: needs {} got {}.", needs, got),
+            &CmdError::InvalidArg{ref got,ref reason} => write!(f, "Invalid argument: '{}' was given when {}",got,reason),
+            &CmdError::UnknownArg(ref x) => write!(f, "Unknown argument '{}'.", x),
+            &CmdError::MissingArg(ref x) => write!(f, "Required argument '{}' is missing.", x),
+            &CmdError::UnexpectedArg(ref x, ref y) => write!(f, "Unexpected argument '{}': try using '{}'.", x, y),
+            &CmdError::Generic(ref x) => write!(f, "Command error: {}", x),
+            &CmdError::NoPermission() => write!(f, "You do not have permission for this command"),
+        }
+    }
+}
+
+// This is important for other errors to wrap this one.
+impl error::Error for CmdError {
+    fn description(&self) -> &str {
+        match self {
+            &CmdError::NothingGiven() => "No command given.",
+            &CmdError::NotFound(_) => "Unknown command.",
+            &CmdError::TooManyArgs{needs,got} => "To many arguments given.",
+            &CmdError::NotEnoughArgs{needs,got} => "Not Enough arguments given.",
+            &CmdError::UnknownArg(_) => "Unknown argument.",
+            &CmdError::MissingArg(_) => "Required argument.",
+            &CmdError::UnexpectedArg(_,_) => "Unexpected argument.",
+            &CmdError::Generic(_) => "Command error.",
+            &CmdError::NoPermission() => "You do not have permission for this command",
+            _ => "CmdError"
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        None
+    }
+}
+
+#[derive(Debug)]
 pub struct Parser {
 
+
 }
+#[derive(Debug,Eq,PartialEq)]
+pub enum Type{
+    U32,
+    I32,
+    F64,
+    Bool,
+    Str,
+}
+use std::error::Error;
+
+impl Type {
+
+}
+
+#[derive(Debug)]
 pub struct Arg {
     name: String,
     position: usize,
+    typec: Type,
+    value: String,
 }
 
 impl Arg {
     pub fn new(name: &str, position: usize) -> Arg {
         Arg {
             name: name.to_string(),
-            position
+            position,
+            typec: Type::Str,
+            value: String::new()
         }
     }
     pub fn get_position(&self) -> usize{
         self.position
     }
+    pub fn get_value(&self) -> &str {
+        &self.value
+    }
+    pub fn parse_value<T: FromStr>(&self) -> Result<T,CmdError> {
+        match self.value.parse::<T>() {
+            Ok(x) => Ok(x),
+            Err(_) => {
+                Err(CmdError::InvalidArg{got: self.value.to_string(), reason: "number was required".to_string()})
+            }
+        }
+    }
 }
 //use std::collections::vec_map::VecMap;
 use std::collections::HashMap;
 //represents a single command that this app will understand.
+//#[derive(Debug)]
 pub struct AppCommand {
     aliases: Vec<String>,
     args: HashMap<usize, Arg>,
     about: String,
     version: String,
+    func: Option<Box<FnOnce(AppCommand) -> CmdResult>>
 }
 
 impl AppCommand {
@@ -181,6 +270,7 @@ impl AppCommand {
             args: HashMap::new(),
             about: String::new(),
             version: String::from("0.1"),
+            func: None
         }
     }
     pub fn alias(mut self, alias: &str) -> AppCommand {
@@ -211,6 +301,10 @@ impl AppCommand {
     
     pub fn arg(mut self, arg: Arg) -> AppCommand {
         self.args.insert(arg.get_position(), arg);
+        self
+    }
+    pub fn execute<F: 'static>(mut self, func: F) -> AppCommand where F: FnOnce(AppCommand) -> CmdResult {
+        self.func = Some(Box::new(func));
         self
     }
 }
