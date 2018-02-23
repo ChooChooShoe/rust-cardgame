@@ -2,8 +2,8 @@
 #[macro_use]
 extern crate log;
 
-mod permission;
 mod parser;
+mod permission;
 
 //use clap::{Arg, App, SubCommand,AppSettings,ArgSettings};
 use std::time::{Duration,Instant};

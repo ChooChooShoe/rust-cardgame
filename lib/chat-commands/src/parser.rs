@@ -224,7 +224,18 @@ pub struct Arg {
     name: String,
     position: usize,
     typec: Type,
+    required: bool,
     value: String,
+}
+
+impl fmt::Display for Arg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.required {
+            write!(f, "<{}>", self.name)
+        } else {
+            write!(f, "[{}]", self.name)
+        }
+    }
 }
 
 impl Arg {
@@ -233,10 +244,16 @@ impl Arg {
             name: name.to_string(),
             position,
             typec: Type::Str,
-            value: String::new()
+            required: false,
+            value: String::new(),
         }
     }
-    pub fn get_position(&self) -> usize{
+    pub fn required(mut self, required: bool) -> Arg {
+        self.required = required;
+        self
+    }
+
+    pub fn get_position(&self) -> usize {
         self.position
     }
     pub fn get_value(&self) -> &str {
