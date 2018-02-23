@@ -3,6 +3,7 @@
 extern crate log;
 
 mod parser;
+mod permission;
 
 //use clap::{Arg, App, SubCommand,AppSettings,ArgSettings};
 use std::time::{Duration,Instant};
@@ -21,6 +22,11 @@ fn main() {
         AppCommand::new("position")
             .alias("pos")
             .alias("whereami")
+            .version("0.1")
+            .about("Display your current player position")
+            .arg(Arg::new("target", 0)
+                .required(false)
+            )
     );
     centre.add(
         AppCommand::new("help")
