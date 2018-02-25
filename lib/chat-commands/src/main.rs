@@ -8,9 +8,9 @@ mod permission;
 //use clap::{Arg, App, SubCommand,AppSettings,ArgSettings};
 use std::time::{Duration,Instant};
 use parser::*;
+use std::io::{self, Read,Write};
 
-
-fn callback(cmd: AppCommand) -> CmdResult {
+fn callback(cmd: &AppCommand, alias: &str, args_count: usize, args: &[&str]) -> CmdResult {
     println!("cmd run");
     Err(CmdError::Generic("not implmented".to_string()))
 }
@@ -30,17 +30,26 @@ fn main() {
     );
     centre.add(
         AppCommand::new("draw")
-            .alias("pos")
             .execute(callback)
-            .arg(Arg::new("num", 0))
+            .arg(Arg::new("num", 0).typecheck(Type::PositveInt))
+            
     );
-    centre.add(
-        AppCommand::new("help")
-            .about("Display a help page")
-            .version("1.0")
-            //.subcommand(SubCommand::with_name("clone")
-            .arg(Arg::new("repo", 0))
-    );
+    centre.add_help();
+    loop {
+        let mut input = String::new();
+        io::stdout().write(b"> ").unwrap();
+        io::stdout().flush().unwrap();
+        match io::stdin().read_line(&mut input) {
+            Ok(_n) => {
+                //println!("read {} bytes /{}", n,input);
+                match centre.run_from_input(&input) {
+                    Ok(msg) => println!("Complete: {}", msg),
+                    Err(e) => println!("Error: {}", e),
+                }
+            }
+            Err(error) => println!("error: {}", error),
+        }
+    }
 }
                 //.help("The repo to clone")
                 //.required(true)))
@@ -99,9 +108,9 @@ fn main() {
     //// more program logic goes here...
 
 use std::collections::HashMap;
-
+use std::rc::Rc;
 pub struct CommandCentre{
-    pub cmds: HashMap<String,AppCommand>,
+    pub cmds: HashMap<String,Rc<AppCommand>>,
     pub last_cmds: Vec<String>,
 }
 
@@ -114,6 +123,33 @@ impl CommandCentre {
         }
     }
     pub fn add(&mut self, cmd: AppCommand) {
-        self.cmds.insert(cmd.get_alias().to_string(), cmd);
+        let rc = Rc::new(cmd);
+        for alias in rc.get_aliases() {
+            self.cmds.insert(alias.to_string(), rc.clone());
+        }
+    }
+    pub fn add_help(&mut self) {
+        let help = AppCommand::new("help")
+                    .alias("?")
+                    .about("Get help for avalable commands")
+                    .arg(Arg::new("page", 0).typecheck(Type::PositveInt))
+                    .arg(Arg::new("command", 0).required(true));
+        self.add(help);
+    }
+    
+    pub fn run_from_input(&self, line: &str) -> CmdResult {
+        let cmdline = CommandLine::from_line(line);
+        if cmdline.is_invalid() {
+            Err(CmdError::InvalidLine())
+        } else if cmdline.args.len() == 0 {
+            Err(CmdError::NothingGiven())
+        } else {
+            let args_count = cmdline.args.len() - 1;
+            let args = cmdline.args();
+            match self.cmds.get(args[0]) {
+                Some(cmd) => cmd.run(args[0], args_count, &args[1..]),
+                None => Err(CmdError::NotFound(args[0].to_string())),
+            }
+        }
     }
 }

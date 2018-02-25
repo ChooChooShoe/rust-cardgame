@@ -6,8 +6,9 @@ use std::ops::Range;
 
 #[derive(Debug, Hash, Eq, PartialEq)]
 pub struct CommandLine {
-    line: String,
-    args: Vec<Range<usize>>,
+    pub line: String,
+    pub args: Vec<Range<usize>>,
+    invalid: bool
 }
 
 const SINGLE: char = '\'';
@@ -17,13 +18,14 @@ const CMD_SLASH: char = '/';
 
 impl CommandLine {
     pub fn from_line(input_line: &str) -> CommandLine {
+        let line = input_line.trim().to_string();
         let mut args = Vec::new();
         let mut begin = 0;
         let mut end = 0;
         let mut state = State::Normal;
         //let mut is_last_quote_done = false;
 
-        for (i, token) in input_line.char_indices() {
+        for (i, token) in line.char_indices() {
             match state {
                 State::InSingleQuote => match token {
                     SINGLE => {
@@ -79,10 +81,17 @@ impl CommandLine {
                 args.push(begin..end);
             }
         }
-        //assert_eq!(state, State::Normal);
-        CommandLine { line: input_line.to_string(), args }
+        let invalid = State::Normal != state;
+        CommandLine { line, args, invalid }
     }
 
+    pub fn args(&self) -> Vec<&str> {
+        let mut v = Vec::new();
+        for range in &self.args {
+            v.push(&self.line[range.clone()]);
+        }
+        v
+    }
     pub fn get(&self, i: usize) -> &str {
         &self.line[self.args[i].clone()]
     }
@@ -93,6 +102,9 @@ impl CommandLine {
             Ok(num) => Ok(num),
             Err(_) => Err(arg),
         }
+    }
+    pub fn is_invalid(&self) -> bool {
+        self.invalid
     }
 }
 
@@ -149,6 +161,7 @@ pub type CmdResult = result::Result<String, CmdError>;
 
 #[derive(Debug, Clone,Eq,PartialEq)]
 pub enum CmdError {
+    InvalidLine(),
     NothingGiven(),
     NotFound(String),
     TooManyArgs{needs: usize, got: usize},
@@ -164,8 +177,9 @@ pub enum CmdError {
 impl fmt::Display for CmdError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            &CmdError::InvalidLine() => write!(f, "Invalid command line. Are all quotes closed?"),
             &CmdError::NothingGiven() => write!(f, "No command given."),
-            &CmdError::NotFound(ref x) => write!(f, "Unknown command: {}.", x),
+            &CmdError::NotFound(ref x) => write!(f, "Unknown command: '{}'.", x),
             &CmdError::TooManyArgs{needs,got} => write!(f, "To many arguments given: needs {} got {}.", needs, got),
             &CmdError::NotEnoughArgs{needs,got} => write!(f, "Not Enough arguments given: needs {} got {}.", needs, got),
             &CmdError::InvalidArg{ref got,ref reason} => write!(f, "Invalid argument: '{}' was given when {}",got,reason),
@@ -206,11 +220,10 @@ pub struct Parser {
 
 }
 #[derive(Debug,Eq,PartialEq)]
-pub enum Type{
-    U32,
-    I32,
-    F64,
-    Bool,
+pub enum Type {
+    Int,
+    PositveInt,
+    RealNum,
     Str,
 }
 use std::error::Error;
@@ -252,6 +265,10 @@ impl Arg {
         self.required = required;
         self
     }
+    pub fn typecheck(mut self, typec: Type) -> Arg {
+        self.typec = typec;
+        self
+    }
 
     pub fn get_position(&self) -> usize {
         self.position
@@ -277,7 +294,7 @@ pub struct AppCommand {
     args: HashMap<usize, Arg>,
     about: String,
     version: String,
-    func: Option<Box<FnOnce(AppCommand) -> CmdResult>>
+    func: Option<Box<FnOnce(&AppCommand,&str,usize,&[&str]) -> CmdResult>>
 }
 
 impl AppCommand {
@@ -320,8 +337,18 @@ impl AppCommand {
         self.args.insert(arg.get_position(), arg);
         self
     }
-    pub fn execute<F: 'static>(mut self, func: F) -> AppCommand where F: FnOnce(AppCommand) -> CmdResult {
+    pub fn execute<F: 'static>(mut self, func: F) -> AppCommand where F: FnOnce(&AppCommand,&str,usize,&[&str]) -> CmdResult {
         self.func = Some(Box::new(func));
         self
+    }
+
+    pub fn run(&self, alias: &str, args_count: usize, args: &[&str]) -> CmdResult {
+        if let Some(ref execute) = self.func {
+            //execute(&self, alias,args_count,args)
+            Err(CmdError::NoPermission())
+        } else {
+            Err(CmdError::NoPermission())
+            //Ok(format!("Command {} run with {} args",self.get_alias(), args_count))
+        }
     }
 }
