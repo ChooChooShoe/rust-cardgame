@@ -1,19 +1,21 @@
-#![feature(plugin, use_extern_macros)]
-#![plugin(tarpc_plugins)]
+//#![feature(plugin, use_extern_macros)]
+//#![plugin(tarpc_plugins)]
 
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate tarpc;
+//#[macro_use]
+//extern crate tarpc;
 
+extern crate ws;
+extern crate url;
 extern crate serde;
 extern crate serde_json;
 extern crate fluent;
 extern crate rand;
-extern crate futures;
-extern crate tokio_core;
+//extern crate futures;
+//extern crate tokio_core;
 
 mod entity;
 mod game;
@@ -69,9 +71,11 @@ fn main() {
     }
 
     if client {
-        net::gameserver::create_client();
+        //net::gameserver::create_client();
+        net::ws_client::connect("ws://127.0.0.1:3012");
     } else {
-        net::gameserver::create_server();
+        //net::gameserver::create_server();
+        net::ws_server::listen("127.0.0.1:3012");
     }
     println!("Program exit.");
 }
@@ -119,7 +123,7 @@ fn read_test() -> io::Result<()>
 }
 
 
-static SIMPLE_LOGGER: SimpleLogger = SimpleLogger {level: Level::Debug};
+static SIMPLE_LOGGER: SimpleLogger = SimpleLogger {level: Level::Info};
 
 struct SimpleLogger {
     level: Level
