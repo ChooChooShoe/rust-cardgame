@@ -1,10 +1,13 @@
-pub mod gameclient;
-pub mod gameserver;
-pub mod message;
+//pub mod gameclient;
+//pub mod gameserver;
+//pub mod message;
+pub mod ws_server;
+pub mod ws_client;
+mod settings;
 
-pub use self::message::Message;
-pub use self::gameclient::GameClient;
-pub use self::gameserver::GameServer;
+//pub use self::message::Message;
+//pub use self::gameclient::GameClient;
+//pub use self::gameserver::GameServer;
 
 use std::sync::Mutex;
 

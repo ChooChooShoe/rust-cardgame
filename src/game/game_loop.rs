@@ -12,9 +12,6 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use game::{MAX_PLAYER_COUNT,MAX_TURNS};
 use utils::timer::Timer;
-use tarpc::sync::{client, server};
-use tarpc::sync::client::ClientExt;
-use tarpc::util::{FirstSocketAddr, Never};
 
 fn run_send_recv_player(pidx: usize, sender: mpsc::Sender<Request>, recv: mpsc::Receiver<Response>) {
     
