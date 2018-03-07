@@ -83,6 +83,7 @@ pub fn create_client() {
     let client = FutureClient::connect("localhost:12512".first_socket_addr(), options);
         //.map_err(tarpc::Error::from)
         //.and_then(|client| client.hello("Mom".to_string()))
-        //.map(|resp| println!("{}", resp));
+        //.map(|resp| println!("RESP: {}", resp));
+
     reactor.run(client).unwrap();
 }

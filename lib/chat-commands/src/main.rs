@@ -10,7 +10,7 @@ use std::time::{Duration,Instant};
 use parser::*;
 use std::io::{self, Read,Write};
 
-fn callback(cmd: &AppCommand, alias: &str, args_count: usize, args: &[&str]) -> CmdResult {
+fn callback(cmd: &AppCommand, args: MatchedArgs) -> CmdResult {
     println!("cmd run");
     Err(CmdError::Generic("not implmented".to_string()))
 }
@@ -43,7 +43,7 @@ fn main() {
             Ok(_n) => {
                 //println!("read {} bytes /{}", n,input);
                 match centre.run_from_input(&input) {
-                    Ok(msg) => println!("Complete: {}", msg),
+                    Ok(_) => println!("Complete"),
                     Err(e) => println!("Error: {}", e),
                 }
             }
@@ -109,6 +109,12 @@ fn main() {
 
 use std::collections::HashMap;
 use std::rc::Rc;
+
+fn help_callback(cmd: &AppCommand, args: MatchedArgs) -> CmdResult {
+    println!("--- Help ---");
+    Ok(())
+}
+
 pub struct CommandCentre{
     pub cmds: HashMap<String,Rc<AppCommand>>,
     pub last_cmds: Vec<String>,
@@ -133,7 +139,8 @@ impl CommandCentre {
                     .alias("?")
                     .about("Get help for avalable commands")
                     .arg(Arg::new("page", 0).typecheck(Type::PositveInt))
-                    .arg(Arg::new("command", 0).required(true));
+                    .arg(Arg::new("command", 0).required(true))
+                    .execute(help_callback);
         self.add(help);
     }
     
@@ -147,7 +154,13 @@ impl CommandCentre {
             let args_count = cmdline.args.len() - 1;
             let args = cmdline.args();
             match self.cmds.get(args[0]) {
-                Some(cmd) => cmd.run(args[0], args_count, &args[1..]),
+                Some(cmd) => {
+                    (&cmd.callback)(&cmd, MatchedArgs {
+                        alias: args[0],
+                        args_count,
+                        args: &args[1..]
+                    })
+                }
                 None => Err(CmdError::NotFound(args[0].to_string())),
             }
         }

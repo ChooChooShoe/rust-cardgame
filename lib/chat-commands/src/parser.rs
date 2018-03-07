@@ -157,7 +157,7 @@ const EXAMPLE: &'static str = "
 ";
 
 use std::result;
-pub type CmdResult = result::Result<String, CmdError>;
+pub type CmdResult = result::Result<(), CmdError>;
 
 #[derive(Debug, Clone,Eq,PartialEq)]
 pub enum CmdError {
@@ -172,6 +172,7 @@ pub enum CmdError {
     UnexpectedArg(String,String),
     Generic(String),
     NoPermission(),
+    EmptyCommand(),
 }
 
 impl fmt::Display for CmdError {
@@ -188,6 +189,7 @@ impl fmt::Display for CmdError {
             &CmdError::UnexpectedArg(ref x, ref y) => write!(f, "Unexpected argument '{}': try using '{}'.", x, y),
             &CmdError::Generic(ref x) => write!(f, "Command error: {}", x),
             &CmdError::NoPermission() => write!(f, "You do not have permission for this command"),
+            _ => write!(f, "Unknown Error"),
         }
     }
 }
@@ -205,7 +207,7 @@ impl error::Error for CmdError {
             &CmdError::UnexpectedArg(_,_) => "Unexpected argument.",
             &CmdError::Generic(_) => "Command error.",
             &CmdError::NoPermission() => "You do not have permission for this command",
-            _ => "CmdError"
+            _ => "Unknown Command Error"
         }
     }
 
@@ -285,6 +287,17 @@ impl Arg {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct MatchedArgs<'a> {
+    pub alias: &'a str,
+    pub args_count: usize,
+    pub args: &'a [&'a str],
+}
+
+fn empty_cmd(cmd: &AppCommand, args: MatchedArgs) -> CmdResult {
+    Err(CmdError::EmptyCommand())
+}
 //use std::collections::vec_map::VecMap;
 use std::collections::HashMap;
 //represents a single command that this app will understand.
@@ -294,7 +307,7 @@ pub struct AppCommand {
     args: HashMap<usize, Arg>,
     about: String,
     version: String,
-    func: Option<Box<FnOnce(&AppCommand,&str,usize,&[&str]) -> CmdResult>>
+    pub callback: Box<Fn(&AppCommand,MatchedArgs) -> CmdResult + 'static>
 }
 
 impl AppCommand {
@@ -303,8 +316,8 @@ impl AppCommand {
             aliases: vec!(name.to_string()),
             args: HashMap::new(),
             about: String::new(),
-            version: String::from("0.1"),
-            func: None
+            version: String::from("1.0"),
+            callback: Box::new(empty_cmd)
         }
     }
     pub fn alias(mut self, alias: &str) -> AppCommand {
@@ -337,18 +350,14 @@ impl AppCommand {
         self.args.insert(arg.get_position(), arg);
         self
     }
-    pub fn execute<F: 'static>(mut self, func: F) -> AppCommand where F: FnOnce(&AppCommand,&str,usize,&[&str]) -> CmdResult {
-        self.func = Some(Box::new(func));
+    pub fn execute<F>(mut self, callback: F) -> AppCommand where F: Fn(&AppCommand,MatchedArgs) -> CmdResult + 'static  {
+        self.callback = Box::new(callback);
         self
     }
 
-    pub fn run(&self, alias: &str, args_count: usize, args: &[&str]) -> CmdResult {
-        if let Some(ref execute) = self.func {
-            //execute(&self, alias,args_count,args)
-            Err(CmdError::NoPermission())
-        } else {
-            Err(CmdError::NoPermission())
-            //Ok(format!("Command {} run with {} args",self.get_alias(), args_count))
-        }
+    pub fn get_examples(&self) -> Vec<&str> {
+        let mut v = vec!();
+        v.push("");
+        v
     }
 }

@@ -42,7 +42,6 @@ fn run_send_recv_player(pidx: usize, sender: mpsc::Sender<Request>, recv: mpsc::
 #[derive(Debug)]
 pub struct Channel {
     response_send: mpsc::Sender<Response>,
-    request_recv: mpsc::Receiver<Request>,
     handle: thread::JoinHandle<()>,
     pidx: usize,
 }
@@ -71,17 +70,19 @@ pub fn run(mut pool: CardPool, mut board: GameBoard) {
     setup_decks(&pool, &mut board);
 
     let mut up_channels = Vec::with_capacity(MAX_PLAYER_COUNT);
+
+    let (request_send, request_recv) = mpsc::channel();
     for pidx in 0..MAX_PLAYER_COUNT {
-        let (request_send, request_recv) = mpsc::channel();
+        let local_sender = request_send.clone();
         let (response_send, response_recv) = mpsc::channel();
-        let handle = thread::spawn(move || run_send_recv_player(pidx, request_send, response_recv));
+        let handle = thread::spawn(move || run_send_recv_player(pidx, local_sender, response_recv));
         up_channels.push(Channel {
             response_send,
-            request_recv,
             handle,
             pidx,
         });
     }
+    drop(request_send);
     board.shuffle_decks();
     board.run_mulligan();
 
@@ -94,8 +95,8 @@ pub fn run(mut pool: CardPool, mut board: GameBoard) {
         //info!("Start step {:?} at {} secs", step, (start_time - game_start_time).as_secs());
 
         match step {
-            Step::GameStart() => run_game_start(&mut up_channels, timer),
-            Step::PlayerTurn(i,t) => run_turn_step(&mut up_channels[i], t, timer),
+            Step::GameStart() => run_game_start(&mut up_channels, &request_recv, timer),
+            Step::PlayerTurn(i,t) => run_turn_step(&mut up_channels[i], &request_recv, t, timer),
             Step::EndGame() => run_game_end(timer),
         }
 
@@ -109,13 +110,13 @@ pub fn run(mut pool: CardPool, mut board: GameBoard) {
     }
 }
 
-fn run_game_start(channels: &mut Vec<Channel>, timer: Timer){
+fn run_game_start(channels: &mut [Channel], request_recv: &mpsc::Receiver<Request>, timer: Timer){
     info!("Game Start!");
     for chan in channels.into_iter() {
         chan.response_send.send(Response::GameStart()).expect("ReadyCheck: send channel closed");
     }
     for chan in channels.into_iter() {
-        match chan.request_recv.recv_timeout(timer.time_left()) {
+        match request_recv.recv_timeout(timer.time_left()) {
             Ok(req) => {
                 match req {
                     Request::ReadyCheck() => {
@@ -138,12 +139,12 @@ fn run_game_end(timer: Timer){
     timer.wait();
 }
 
-fn run_turn_step(chan: &mut Channel, turn_count: u32, timer: Timer) {
+fn run_turn_step(chan: &mut Channel, request_recv: &mpsc::Receiver<Request>, turn_count: u32, timer: Timer) {
     info!("Turn {} for Player #{}",turn_count, chan.pidx);
     loop {
         if timer.is_out_of_time() {
             info!("Turn End: Overtime");
-            match chan.request_recv.try_recv() {
+            match request_recv.try_recv() {
                 Ok(s) => info!("Got in Overtime: {:?}", s),
                 Err(mpsc::TryRecvError::Empty) => {
                     info!("Overtime: Empty");
@@ -155,7 +156,7 @@ fn run_turn_step(chan: &mut Channel, turn_count: u32, timer: Timer) {
             }
             break;
         }
-        match chan.request_recv.recv_timeout(timer.time_left()) {
+        match request_recv.recv_timeout(timer.time_left()) {
             Ok(s) => {
                 info!("Got: {:?}", s);
                 match s {
