@@ -9,6 +9,7 @@ use ws::CloseCode;
 //use ws::result::{Result, Error, Kind};
 use ws::util::{Token, Timeout};
 use net::settings::ServerConfig;
+use game::action::{Act,Action,OkCode,Error};
 
 pub fn listen<A: ToSocketAddrs>(ip: A) {
     let settings: Settings = ServerConfig::from_disk().into();
@@ -55,11 +56,12 @@ impl Handler for ServerHandler {
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
-        let t = msg.into_text()?;
-        if t == "quit" {
-            return self.0.close(CloseCode::Normal)
+        let mut action = Action::decode(msg);
+        match action.perform() {
+            Ok(OkCode::EchoAction) => self.0.send(action.encode()),
+            Ok(OkCode::Nothing) => Ok(()),
+            Err(e) => Ok(())
         }
-        return self.0.send(format!("You say '{:?}' wow!",t))
     }
 
     /// Called any time this endpoint receives a close control frame.

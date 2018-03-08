@@ -10,6 +10,7 @@ extern crate log;
 
 extern crate ws;
 extern crate url;
+extern crate bincode;
 extern crate serde;
 extern crate serde_json;
 extern crate fluent;
