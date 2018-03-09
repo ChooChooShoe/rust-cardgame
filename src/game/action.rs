@@ -13,6 +13,7 @@ pub enum OkCode {
     EchoAction,
 }
 /// The type of an error.
+#[derive(Serialize,Deserialize)]
 pub enum Error {
     /// Indicates an internal prossesing error. 
     Internal,
@@ -28,7 +29,7 @@ pub enum Error {
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Action Responce Error {:?}", self)
+        write!(f, "Action Responce Error {}", self)
     }
 }
 
@@ -64,11 +65,13 @@ pub trait Act : Sized + fmt::Debug {
     fn undo(&mut self) -> Result;
 }
 
-#[derive(Debug,Serialize,Deserialize,PartialEq,Clone)]
+#[derive(Debug,Serialize,Deserialize)]
 pub enum Action {
     Text(String),
     Empty,
     Invalid,
+    Error(Error),
+    Ok,
     DrawCard(u64),
     PlayCard(u64)
 }

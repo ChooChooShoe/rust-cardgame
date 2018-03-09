@@ -1,5 +1,8 @@
 //#![feature(plugin, use_extern_macros)]
 //#![plugin(tarpc_plugins)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
 
 #[macro_use]
 extern crate serde_derive;

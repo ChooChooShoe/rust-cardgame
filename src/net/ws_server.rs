@@ -15,7 +15,12 @@ pub fn listen<A: ToSocketAddrs>(ip: A, mut pool: CardPool, mut board: GameBoard)
     let settings = ServerConfig::from_disk().into();
     let (send,recv) = channel();
     
-    let factory = ServerFactory { sender: send, pool, board };
+    let factory = ServerFactory { 
+        sender: send, 
+        pool, 
+        board,
+        last_bid: 0
+    };
     let ws = Builder::new().with_settings(settings).build(factory).unwrap();
     
     ws.listen(ip).unwrap();
@@ -24,18 +29,21 @@ pub fn listen<A: ToSocketAddrs>(ip: A, mut pool: CardPool, mut board: GameBoard)
 struct ServerFactory {
     sender: TSender<Event>,
     pool: CardPool, 
-    board: GameBoard
+    board: GameBoard,
+    last_bid: u8,
 }
 impl Factory for ServerFactory
 {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        ServerHandle {
+        let s = ServerHandle {
             ws_out: out,
             thread_out: self.sender.clone(),
-            pidx: 0,
-        }
+            bid: self.last_bid,
+        };
+        self.last_bid += 1;
+        s
     }
     fn connection_lost(&mut self, _: ServerHandle) {
         warn!("Connection lost.");
@@ -54,7 +62,7 @@ pub enum Event {
 struct ServerHandle {
     ws_out: WsSender,
     thread_out: TSender<Event>,
-    pidx: usize,
+    bid: u8,
 }
 
 impl Handler for ServerHandle {
@@ -80,7 +88,7 @@ impl Handler for ServerHandle {
         match action.perform() {
             Ok(OkCode::EchoAction) => self.ws_out.send(action.encode()),
             Ok(OkCode::Nothing) => Ok(()),
-            Err(e) => Ok(())
+            Err(e) => self.ws_out.send(Action::Error(e).encode())
         }
     }
 
