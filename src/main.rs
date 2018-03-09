@@ -9,10 +9,9 @@ extern crate log;
 //extern crate tarpc;
 
 extern crate ws;
-extern crate url;
 extern crate serde;
 extern crate serde_json;
-extern crate fluent;
+//extern crate fluent;
 extern crate rand;
 //extern crate futures;
 //extern crate tokio_core;
@@ -64,7 +63,7 @@ fn main() {
     //game::game_loop::run(pool, board);
     let mut client = false;
     for argument in env::args() {
-        println!("Args: {}", argument);
+        info!("Args: {}", argument);
         if argument == "client" {
             client = true;
         }
@@ -72,12 +71,15 @@ fn main() {
 
     if client {
         //net::gameserver::create_client();
-        net::ws_client::connect("ws://127.0.0.1:3012");
+        match net::ws_client::connect("ws://127.0.0.1:3012") {
+            Ok(()) => info!("Program exit."),
+            Err(e) => error!("Program exit with error: {}",e),
+        }
     } else {
         //net::gameserver::create_server();
-        net::ws_server::listen("127.0.0.1:3012");
+        net::ws_server::listen("127.0.0.1:3012", pool, board);
+        info!("Program exit.");
     }
-    println!("Program exit.");
 }
 
 fn write_test(card_collection: &CardPool) -> io::Result<()>

@@ -1,78 +1,64 @@
-use ws::{CloseCode,Handler,Sender};
-use ws::*;
+use ws::{self,Result,Request,Response,Message,Handshake,CloseCode,Handler,Sender,Error,ErrorKind};
 use ws::util::{Token, Timeout};
-use url::Url;
 use io;
+use std::thread;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender as TSender;
 
-pub fn connect(url: &str) -> Result<()> {
-    let mut ws = try!(WebSocket::new(ClientFactory));
-    let parsed = try!(
-        Url::parse(url)
-            .map_err(|err| Error::new(
-                ErrorKind::Internal,
-                format!("Unable to parse {} as url due to {:?}", url, err))));
-    try!(ws.connect(parsed));
-    try!(ws.run());
-    Ok(())
-}
-
-struct ClientFactory;
-impl Factory for ClientFactory
-{
-    type Handler = ClientHandler;
-
-    fn connection_made(&mut self, out: Sender) -> ClientHandler {
+pub fn connect(url: &str, callback: TSender<Event>) -> Result<()> {
+    ws::connect(url, |out: Sender| {
         out.send("Hello WebSocket").unwrap();
-        ClientHandler(out)
-    }
-    fn connection_lost(&mut self, _: Self::Handler) {
-        warn!("Connection lost.");
-    }
+        Client {
+            ws_out: out,
+            thread_out: callback
+        }
+    })
+}
 
+// Message from clients to game loop.
+#[derive(Debug)]
+pub enum Event {
+    Connect(Sender),
+    Disconnect(CloseCode),
 }
-struct ClientHandler(Sender);
-impl ClientHandler {
+
+struct Client {
+    ws_out: Sender
+    thread_out: TSender<Event>
 }
-impl Handler for ClientHandler {
+
+impl Client {
+    fn new(out: Sender) -> Client {
+        Client {
+            ws_out: out,
+            thread_out
+        }
+    }
+}
+
+impl Handler for Client {
     #[inline]
     fn on_shutdown(&mut self) {
-        info!("ClientHandler received WebSocket shutdown request.");
+        info!("Client received WebSocket shutdown request.");
     }
     
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
-        if let Some(addr) = try!(shake.remote_addr()) {
-            info!("Connection with {} now open", addr);
-        }
-        Ok(())
+        self.thread_out
+            .send(Event::Connect(self.ws_out.clone()))
+            .map_err(|err| Error::new(
+                ErrorKind::Internal, 
+                format!("Unable to communicate between threads: {:?}.", err)
+            ))
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         info!("Connection closing due to ({:?}) {}", code, reason);
+
+        if let Err(err) = self.thread_out.send(Event::Disconnect(code)) {
+            error!("Error on conection close: {:?}", err)
+        }
     }
 
-    #[inline]
-    fn on_request(&mut self, req: &Request) -> Result<Response> {
-        debug!("ClientHandler received request:\n{}", req);
-        Response::from_request(req)
-    }
-
-    #[inline]
-    fn on_response(&mut self, res: &Response) -> Result<()> {
-        debug!("ClientHandler received response:\n{}", res);
-        Ok(())
-    }
-
-    #[inline]
-    fn on_timeout(&mut self, event: Token) -> Result<()> {
-        debug!("ClientHandler received timeout token: {:?}", event);
-        Ok(())
-    }
-
-    #[inline]
-    fn on_new_timeout(&mut self, _: Token, _: Timeout) -> Result<()> {
-        // default implementation discards the timeout handle
-        Ok(())
-    }
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
@@ -82,9 +68,9 @@ impl Handler for ClientHandler {
             Ok(num_bytes) => {
                 let c = input.trim().to_string();
                 if c == "bytes" {
-                    self.0.send(Message::Binary(vec!(num_bytes as u8)))?;
+                    self.ws_out.send(Message::Binary(vec!(num_bytes as u8)))?;
                 }
-                self.0.send(Message::Text(c))
+                self.ws_out.send(Message::Text(c))
             }
             Err(_e) => Ok(())
         }

@@ -1,46 +1,62 @@
 use std::net::ToSocketAddrs;
-use ws::Handler;
-use ws::*;
+use ws::{Factory,Handler,Handshake,Result,Response,Request,Message,Sender,Frame,CloseCode,Error,ErrorKind,Builder};
 
-use ws::Message;
-use ws::Frame;
-use ws::CloseCode;
-//use ws::handshake::{Handshake, Request, Response};
-//use ws::result::{Result, Error, Kind};
 use ws::util::{Token, Timeout};
 use net::settings::ServerConfig;
 
-pub fn listen<A: ToSocketAddrs>(ip: A) {
-    let settings: Settings = ServerConfig::from_disk().into();
+use std::thread;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender as TSender;
 
-    let ws = Builder::new().with_settings(settings).build(ServerFactory).unwrap();
+pub fn listen<A: ToSocketAddrs>(ip: A, mut pool: CardPool, mut board: GameBoard) {
+    let settings = ServerConfig::from_disk().into();
+    
+    let factory = ServerFactory { pool, board }
+    let ws = Builder::new().with_settings(settings).build(factory).unwrap();
     
     ws.listen(ip).unwrap();
 }
 
-struct ServerFactory;
+struct ServerFactory {
+    pool: CardPool, 
+    board: GameBoard
+}
 impl Factory for ServerFactory
 {
-    type Handler = ServerHandler;
+    type Handler = Server;
 
-    fn connection_made(&mut self, out: Sender) -> ServerHandler {
-        ServerHandler(out)
+    fn connection_made(&mut self, out: Sender) -> Server {
+        Server {
+            ws_out: out,
+            thread_out: callback
+        }
     }
-    fn connection_lost(&mut self, _: Self::Handler) {
-        warn!("Connection lost.");
+    fn connection_lost(&mut self, _: Server) {
+        //warn!("Connection lost.");
     }
 
 }
-struct ServerHandler(Sender);
 
-impl ServerHandler {
+// Message from clients to game loop.
+#[derive(Debug)]
+pub enum Event {
+    Connect(Sender),
+    Disconnect(CloseCode),
 }
 
-impl Handler for ServerHandler {
+
+/// Represents one player's connection to us (the server)
+struct Server {
+    ws_out: Sender,
+    thread_out: TSender<Event>,
+    pidx: usize,
+}
+
+impl Handler for Server {
     /// Called when a request to shutdown all connections has been received.
     #[inline]
     fn on_shutdown(&mut self) {
-        info!("ServerHandler received WebSocket shutdown request.");
+        info!("Server received WebSocket shutdown request.");
     }
     
     /// Called when the WebSocket handshake is successful and the connection is open for sending
@@ -57,7 +73,11 @@ impl Handler for ServerHandler {
         info!("Received message {:?}", msg);
         let t = msg.into_text()?;
         if t == "quit" {
-            return self.0.close(CloseCode::Normal)
+            self.0.close(CloseCode::Normal).unwrap();
+        }
+        if t == "stop-server" {
+            self.0.shutdown().unwrap();
+            
         }
         return self.0.send(format!("You say '{:?}' wow!",t))
     }
@@ -70,7 +90,17 @@ impl Handler for ServerHandler {
     }
 
     /// Called when an error occurs on the WebSocket.
-    //fn on_error(&mut self, err: Error);
+    fn on_error(&mut self, err: Error) {
+        // Ignore connection reset errors by default, but allow library clients to see them by
+        // overriding this method if they want
+        if let ErrorKind::Io(ref err) = err.kind {
+            if let Some(104) = err.raw_os_error() {
+                return
+            }
+        }
+
+        error!("{:?}", err);
+    }
 
     // handshake events
 
@@ -98,7 +128,7 @@ impl Handler for ServerHandler {
     /// ```
     #[inline]
     fn on_request(&mut self, req: &Request) -> Result<Response> {
-        debug!("ServerHandler received request:\n{}", req);
+        info!("Server received request.");
         Response::from_request(req)
     }
 
@@ -111,7 +141,7 @@ impl Handler for ServerHandler {
     /// has agreed to if any.
     #[inline]
     fn on_response(&mut self, res: &Response) -> Result<()> {
-        debug!("ServerHandler received response:\n{}", res);
+        info!("Server received response.");
         Ok(())
     }
 
@@ -147,7 +177,7 @@ impl Handler for ServerHandler {
     /// ```
     #[inline]
     fn on_timeout(&mut self, event: Token) -> Result<()> {
-        info!("ServerHandler received timeout token: {:?}", event);
+        info!("Server received timeout token: {:?}", event);
         Ok(())
     }
 

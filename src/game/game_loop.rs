@@ -173,22 +173,6 @@ fn run_turn_step(chan: &mut Channel, request_recv: &mpsc::Receiver<Request>, tur
         }
     }
 }
-// Message from out comeing in.
-#[derive(Debug, Eq, PartialEq, Hash)]
-pub enum Request {
-    EndTurn(),
-    PlayCard(String),
-    ReadyCheck(),
-}
-
-// Message going out.
-#[derive(Debug, Eq, PartialEq, Hash)]
-pub enum Response {
-    GameStart(),
-    TurnIsOver(),
-    CreateCard(),
-    DrawCard(),
-}
 
 fn setup_decks(pool: &CardPool, board: &mut GameBoard) {
     let cards_to_add = vec![
