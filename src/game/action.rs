@@ -2,11 +2,16 @@ use std::fmt;
 use std::result::Result as StdResult;
 use std::error::Error as StdError;
 use std::convert::{From, Into};
+use bincode::*;
 
 use ws::Message;
 
-pub type Result<T> = StdResult<T, Error>;
+pub type Result = StdResult<OkCode, Error>;
 
+pub enum OkCode {
+    Nothing,
+    EchoAction,
+}
 /// The type of an error.
 pub enum Error {
     /// Indicates an internal prossesing error. 
@@ -54,30 +59,73 @@ impl StdError for Error {
     }
 }
 
-pub trait Action<T> : Sized + fmt::Debug + Eq {
-    fn perform(&mut self) -> Result<T>;
-    fn undo(&mut self) -> Result<T>;
+pub trait Act : Sized + fmt::Debug {
+    fn perform(&mut self) -> Result;
+    fn undo(&mut self) -> Result;
 }
 
-#[derive(Eq,PartialEq,Debug)]
-pub struct PlayerAction(String);
-
-impl Action<String> for PlayerAction {
-    fn perform(&mut self) -> Result<String> {
-        Ok(self.0.to_string())
-    }
-    fn undo(&mut self) -> Result<String> {
-        Err(Error::Generic)
-    }
+#[derive(Debug,Serialize,Deserialize,PartialEq,Clone)]
+pub enum Action {
+    Text(String),
+    Empty,
+    Invalid,
+    DrawCard(u64),
+    PlayCard(u64)
 }
 
-impl Into<Message> for PlayerAction {
-    fn into(self) -> Message {
-        Message::Text(self.0)
+impl Act for Action {
+    fn perform(&mut self) -> Result {
+        Ok(OkCode::EchoAction)
+    }
+    fn undo(&mut self) -> Result {
+        Err(Error::NoTarget)
     }
 }
-impl From<Message> for PlayerAction {
-    fn from(msg: Message) -> Self {
-        PlayerAction(msg.into_text().unwrap())
+impl Action { 
+    pub fn encode(self) -> Message {
+        match self {
+            Action::Text(t) => Message::Text(t),
+            Action::Invalid => {
+                warn!("Atempting to encode Invalid Action");
+                Message::Binary(serialize(&self).unwrap())
+            }
+            Action::Empty => {
+                warn!("Atempting to encode Empty Action");
+                Message::Binary(serialize(&self).unwrap())
+            }
+            _ => Message::Binary(serialize(&self).unwrap())
+        }
+    }
+
+    pub fn decode(msg: Message) -> Self {
+        match msg {
+            Message::Text(t) => Action::Text(t),
+            Message::Binary(b) => match deserialize(&b[..]) {
+                Ok(action) => action,
+                Err(boxed) => {
+                    warn!("Decoded invalid message: {:?}", boxed.as_ref());
+                    match *boxed {
+                        ErrorKind::Io(_e) => Action::Invalid, //Error
+                        ErrorKind::InvalidUtf8Encoding(_e) => Action::Invalid, // Utf8Error
+                        ErrorKind::InvalidBoolEncoding(_d) => Action::Invalid,
+                        ErrorKind::InvalidCharEncoding => Action::Invalid,
+                        ErrorKind::InvalidTagEncoding(_d) => Action::Invalid,
+                        ErrorKind::DeserializeAnyNotSupported => Action::Invalid,
+                        ErrorKind::SizeLimit => Action::Invalid,
+                        ErrorKind::SequenceMustHaveLength => Action::Invalid,
+                        ErrorKind::Custom(_s) => Action::Invalid
+                    }
+                }
+            }
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_vec_and_back() {
+        assert_eq!(Action::DrawCard(500), Action::decode(Action::DrawCard(500).encode()));
     }
 }

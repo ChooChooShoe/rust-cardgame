@@ -1,34 +1,57 @@
-use ws::{self,Result,Request,Response,Message,Handshake,CloseCode,Handler,Sender,Error,ErrorKind};
+use ws::{self,Result,Request,Response,Message,Handshake,CloseCode,Handler,Error,ErrorKind};
+use ws::Sender as WsSender;
 use ws::util::{Token, Timeout};
 use io;
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
+use bincode::*;
 
-pub fn connect(url: &str, callback: TSender<Event>) -> Result<()> {
-    ws::connect(url, |out: Sender| {
+pub fn connect(url: &str) {
+    let (send,recv) = channel();
+    let thread_handle = thread::spawn(move || {
+        for e in recv {
+            info!("e: ");
+        }
+    });
+
+    ws::connect(url, |out: WsSender| {
         out.send("Hello WebSocket").unwrap();
         Client {
             ws_out: out,
-            thread_out: callback
+            thread_out: send.clone()
         }
-    })
+    }).unwrap();
+
+    //thread_handle.connect();    
 }
+//fn def() {
+//    let mut input = String::new();
+//    match io::stdin().read_line(&mut input) {
+//        Ok(num_bytes) => {
+//            let c = input.trim().to_string();
+//            if c == "bytes" {
+//                self.ws_out.send(Message::Binary(vec!(num_bytes as u8)))?;
+//            }
+//            self.ws_out.send(Message::Text(c))
+//        }
+//        Err(_e) => Ok(())
+//    }
+//}
 
 // Message from clients to game loop.
-#[derive(Debug)]
 pub enum Event {
-    Connect(Sender),
+    Connect(WsSender),
     Disconnect(CloseCode),
 }
 
 struct Client {
-    ws_out: Sender
+    ws_out: WsSender,
     thread_out: TSender<Event>
 }
 
 impl Client {
-    fn new(out: Sender) -> Client {
+    fn new(out: WsSender, thread_out: TSender<Event>) -> Client {
         Client {
             ws_out: out,
             thread_out
@@ -62,17 +85,6 @@ impl Handler for Client {
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
-
-        let mut input = String::new();
-        match io::stdin().read_line(&mut input) {
-            Ok(num_bytes) => {
-                let c = input.trim().to_string();
-                if c == "bytes" {
-                    self.ws_out.send(Message::Binary(vec!(num_bytes as u8)))?;
-                }
-                self.ws_out.send(Message::Text(c))
-            }
-            Err(_e) => Ok(())
-        }
+        Ok(())
     }
 }

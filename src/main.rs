@@ -9,6 +9,7 @@ extern crate log;
 //extern crate tarpc;
 
 extern crate ws;
+extern crate bincode;
 extern crate serde;
 extern crate serde_json;
 //extern crate fluent;
@@ -71,10 +72,7 @@ fn main() {
 
     if client {
         //net::gameserver::create_client();
-        match net::ws_client::connect("ws://127.0.0.1:3012") {
-            Ok(()) => info!("Program exit."),
-            Err(e) => error!("Program exit with error: {}",e),
-        }
+        net::ws_client::connect("ws://127.0.0.1:3012");
     } else {
         //net::gameserver::create_server();
         net::ws_server::listen("127.0.0.1:3012", pool, board);

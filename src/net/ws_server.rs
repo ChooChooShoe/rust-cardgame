@@ -1,8 +1,11 @@
+use entity::card::CardPool;
+use game::GameBoard;
 use std::net::ToSocketAddrs;
-use ws::{Factory,Handler,Handshake,Result,Response,Request,Message,Sender,Frame,CloseCode,Error,ErrorKind,Builder};
-
+use ws::{Factory,Handler,Handshake,Result,Response,Request,Message,Frame,CloseCode,Error,ErrorKind,Builder};
+use ws::Sender as WsSender;
 use ws::util::{Token, Timeout};
 use net::settings::ServerConfig;
+use game::action::{Act,Action,OkCode,Error as ActionError};
 
 use std::thread;
 use std::sync::mpsc::channel;
@@ -10,53 +13,55 @@ use std::sync::mpsc::Sender as TSender;
 
 pub fn listen<A: ToSocketAddrs>(ip: A, mut pool: CardPool, mut board: GameBoard) {
     let settings = ServerConfig::from_disk().into();
+    let (send,recv) = channel();
     
-    let factory = ServerFactory { pool, board }
+    let factory = ServerFactory { sender: send, pool, board };
     let ws = Builder::new().with_settings(settings).build(factory).unwrap();
     
     ws.listen(ip).unwrap();
 }
 
 struct ServerFactory {
+    sender: TSender<Event>,
     pool: CardPool, 
     board: GameBoard
 }
 impl Factory for ServerFactory
 {
-    type Handler = Server;
+    type Handler = ServerHandle;
 
-    fn connection_made(&mut self, out: Sender) -> Server {
-        Server {
+    fn connection_made(&mut self, out: WsSender) -> ServerHandle {
+        ServerHandle {
             ws_out: out,
-            thread_out: callback
+            thread_out: self.sender.clone(),
+            pidx: 0,
         }
     }
-    fn connection_lost(&mut self, _: Server) {
-        //warn!("Connection lost.");
+    fn connection_lost(&mut self, _: ServerHandle) {
+        warn!("Connection lost.");
     }
 
 }
 
 // Message from clients to game loop.
-#[derive(Debug)]
 pub enum Event {
-    Connect(Sender),
+    Connect(WsSender),
     Disconnect(CloseCode),
 }
 
 
-/// Represents one player's connection to us (the server)
-struct Server {
-    ws_out: Sender,
+/// Represents one player's connection to us (the ServerHandle)
+struct ServerHandle {
+    ws_out: WsSender,
     thread_out: TSender<Event>,
     pidx: usize,
 }
 
-impl Handler for Server {
+impl Handler for ServerHandle {
     /// Called when a request to shutdown all connections has been received.
     #[inline]
     fn on_shutdown(&mut self) {
-        info!("Server received WebSocket shutdown request.");
+        info!("ServerHandle received WebSocket shutdown request.");
     }
     
     /// Called when the WebSocket handshake is successful and the connection is open for sending
@@ -71,15 +76,12 @@ impl Handler for Server {
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
-        let t = msg.into_text()?;
-        if t == "quit" {
-            self.0.close(CloseCode::Normal).unwrap();
+        let mut action = Action::decode(msg);
+        match action.perform() {
+            Ok(OkCode::EchoAction) => self.ws_out.send(action.encode()),
+            Ok(OkCode::Nothing) => Ok(()),
+            Err(e) => Ok(())
         }
-        if t == "stop-server" {
-            self.0.shutdown().unwrap();
-            
-        }
-        return self.0.send(format!("You say '{:?}' wow!",t))
     }
 
     /// Called any time this endpoint receives a close control frame.
@@ -128,7 +130,7 @@ impl Handler for Server {
     /// ```
     #[inline]
     fn on_request(&mut self, req: &Request) -> Result<Response> {
-        info!("Server received request.");
+        info!("ServerHandle received request.");
         Response::from_request(req)
     }
 
@@ -136,12 +138,12 @@ impl Handler for Server {
     /// handshake.
     ///
     /// Implementors can inspect the Response and choose to fail the connection by
-    /// returning an error. This method will not be called when the handler represents a server
-    /// endpoint. The response should indicate which WebSocket protocol and extensions the server
+    /// returning an error. This method will not be called when the handler represents a ServerHandle
+    /// endpoint. The response should indicate which WebSocket protocol and extensions the ServerHandle
     /// has agreed to if any.
     #[inline]
     fn on_response(&mut self, res: &Response) -> Result<()> {
-        info!("Server received response.");
+        info!("ServerHandle received response.");
         Ok(())
     }
 
@@ -177,7 +179,7 @@ impl Handler for Server {
     /// ```
     #[inline]
     fn on_timeout(&mut self, event: Token) -> Result<()> {
-        info!("Server received timeout token: {:?}", event);
+        info!("ServerHandle received timeout token: {:?}", event);
         Ok(())
     }
 
@@ -237,7 +239,7 @@ impl Handler for Server {
     /// A method for wrapping a client TcpStream with Ssl Authentication machinery
     ///
     /// Override this method to customize how the connection is encrypted. By default
-    /// this will use the Server Name Indication extension in conformance with RFC6455.
+    /// this will use the ServerHandle Name Indication extension in conformance with RFC6455.
     #[inline]
     #[cfg(feature="ssl")]
     fn upgrade_ssl_client(&mut self, stream: TcpStream, url: &url::Url) -> Result<SslStream<TcpStream>>
@@ -251,7 +253,7 @@ impl Handler for Server {
         connector.connect(domain, stream).map_err(Error::from)
     }
 
-    /// A method for wrapping a server TcpStream with Ssl Authentication machinery
+    /// A method for wrapping a ServerHandle TcpStream with Ssl Authentication machinery
     ///
     /// Override this method to customize how the connection is encrypted. By default
     /// this method is not implemented.
