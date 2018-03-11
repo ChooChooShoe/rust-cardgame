@@ -1,69 +1,69 @@
 use entity::card::CardPool;
 use game::GameBoard;
 use std::net::ToSocketAddrs;
-use ws::{Factory,Handler,Handshake,Result,Response,Request,Message,Frame,CloseCode,Error,ErrorKind,Builder};
+use ws::{Builder, CloseCode, Error, ErrorKind, Factory, Frame, Handler, Handshake, Message,
+         Request, Response, Result};
 use ws::Sender as WsSender;
-use ws::util::{Token, Timeout};
+use ws::util::Token;
 use net::settings::ServerConfig;
-use game::action::{Act,Action,OkCode,Error as ActionError};
-
+use net::server::action::ServerAct;
+use game::action::{Act, Action, Error as ActionError, OkCode};
+use game::core::{self,Event};
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
 
-pub fn listen<A: ToSocketAddrs>(ip: A, mut pool: CardPool, mut board: GameBoard) {
+pub fn listen<A: ToSocketAddrs>(ip: A, pool: CardPool, board: GameBoard) {
     let settings = ServerConfig::from_disk().into();
-    let (send,recv) = channel();
-    
-    let factory = ServerFactory { 
-        sender: send, 
-        pool, 
+    let (send, recv) = channel();
+    let thread_handle = thread::spawn(move || core::run(recv));
+
+    let factory = ServerFactory {
+        sender: send,
+        pool,
         board,
-        last_bid: 0
+        last_bid: 0,
     };
     let ws = Builder::new().with_settings(settings).build(factory).unwrap();
-    
-    ws.listen(ip).unwrap();
-}
 
+    ws.listen(ip).unwrap();
+    thread_handle.join().unwrap();
+}
 struct ServerFactory {
     sender: TSender<Event>,
-    pool: CardPool, 
+    pool: CardPool,
     board: GameBoard,
     last_bid: u8,
 }
-impl Factory for ServerFactory
-{
+impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        let s = ServerHandle {
-            ws_out: out,
+        let s = ServerHandle (out, Stage {
             thread_out: self.sender.clone(),
             bid: self.last_bid,
-        };
+        });
         self.last_bid += 1;
         s
     }
     fn connection_lost(&mut self, _: ServerHandle) {
         warn!("Connection lost.");
     }
-
 }
 
-// Message from clients to game loop.
-pub enum Event {
-    Connect(WsSender),
-    Disconnect(CloseCode),
-}
-
-
-/// Represents one player's connection to us (the ServerHandle)
-struct ServerHandle {
-    ws_out: WsSender,
+pub struct Stage {
     thread_out: TSender<Event>,
     bid: u8,
 }
+
+impl Stage {
+    fn new(thread_out: TSender<Event>, bid: u8) -> Stage {
+        Stage { thread_out, bid }
+    }
+}
+
+/// Represents one player's connection to us (the ServerHandle)
+pub struct ServerHandle(WsSender, Stage);
 
 impl Handler for ServerHandle {
     /// Called when a request to shutdown all connections has been received.
@@ -71,7 +71,7 @@ impl Handler for ServerHandle {
     fn on_shutdown(&mut self) {
         info!("ServerHandle received WebSocket shutdown request.");
     }
-    
+
     /// Called when the WebSocket handshake is successful and the connection is open for sending
     /// and receiving messages.
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
@@ -85,10 +85,8 @@ impl Handler for ServerHandle {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
         let mut action = Action::decode(msg);
-        match action.perform() {
-            Ok(OkCode::EchoAction) => self.ws_out.send(action.encode()),
-            Ok(OkCode::Nothing) => Ok(()),
-            Err(e) => self.ws_out.send(Action::Error(e).encode())
+        match ServerAct::perform(&mut action, &mut self.1) {
+            _ => Ok(()),
         }
     }
 
@@ -105,7 +103,7 @@ impl Handler for ServerHandle {
         // overriding this method if they want
         if let ErrorKind::Io(ref err) = err.kind {
             if let Some(104) = err.raw_os_error() {
-                return
+                return;
             }
         }
 
@@ -146,8 +144,8 @@ impl Handler for ServerHandle {
     /// handshake.
     ///
     /// Implementors can inspect the Response and choose to fail the connection by
-    /// returning an error. This method will not be called when the handler represents a ServerHandle
-    /// endpoint. The response should indicate which WebSocket protocol and extensions the ServerHandle
+    /// returning an error. This method will not be called when the handler represents a Server
+    /// endpoint. The response should indicate which WebSocket protocol and extensions the Server
     /// has agreed to if any.
     #[inline]
     fn on_response(&mut self, res: &Response) -> Result<()> {
@@ -238,26 +236,29 @@ impl Handler for ServerHandle {
     ///     Ok(Some(frame))
     /// }
     /// ```
-    #[inline]
-    fn on_new_timeout(&mut self, _: Token, _: Timeout) -> Result<()> {
-        // default implementation discards the timeout handle
-        Ok(())
-    }
+    //#[inline]
+    //fn on_new_timeout(&mut self, _: Token, _: Timeout) -> Result<()> {
+    //    // default implementation discards the timeout handle
+    //    Ok(())
+    //}
 
     /// A method for wrapping a client TcpStream with Ssl Authentication machinery
     ///
     /// Override this method to customize how the connection is encrypted. By default
     /// this will use the ServerHandle Name Indication extension in conformance with RFC6455.
     #[inline]
-    #[cfg(feature="ssl")]
-    fn upgrade_ssl_client(&mut self, stream: TcpStream, url: &url::Url) -> Result<SslStream<TcpStream>>
-    {
+    #[cfg(feature = "ssl")]
+    fn upgrade_ssl_client(&mut self, stream: TcpStream, url: &url::Url) -> Result<SslStream<TcpStream>> {
         let domain = try!(url.domain().ok_or(Error::new(
             Kind::Protocol,
-            format!("Unable to parse domain from {}. Needed for SSL.", url))));
-        let connector = try!(SslConnectorBuilder::new(SslMethod::tls()).map_err(|e| {
-            Error::new(Kind::Internal, format!("Failed to upgrade client to SSL: {}", e))
-        })).build();
+            format!("Unable to parse domain from {}. Needed for SSL.", url)
+        )));
+        let connector = try!(
+            SslConnectorBuilder::new(SslMethod::tls()).map_err(|e| Error::new(
+                Kind::Internal,
+                format!("Failed to upgrade client to SSL: {}", e)
+            ))
+        ).build();
         connector.connect(domain, stream).map_err(Error::from)
     }
 
@@ -266,9 +267,8 @@ impl Handler for ServerHandle {
     /// Override this method to customize how the connection is encrypted. By default
     /// this method is not implemented.
     #[inline]
-    #[cfg(feature="ssl")]
-    fn upgrade_ssl_server(&mut self, _: TcpStream) -> Result<SslStream<TcpStream>>
-    {
+    #[cfg(feature = "ssl")]
+    fn upgrade_ssl_server(&mut self, _: TcpStream) -> Result<SslStream<TcpStream>> {
         unimplemented!()
     }
 }

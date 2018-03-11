@@ -1,7 +1,7 @@
 //#![feature(plugin, use_extern_macros)]
 //#![plugin(tarpc_plugins)]
 #![allow(dead_code)]
-#![allow(unused_variables)]
+//#![allow(unused_variables)]
 #![allow(unused_imports)]
 
 #[macro_use]
@@ -61,7 +61,7 @@ fn main() {
 
     let player1 = Player::new(1,String::from("player #1"));
     let player2 = Player::new(2,String::from("player #2"));
-    let mut board = game::GameBoard::new(42, player1, player2);
+    let board = game::GameBoard::new(42, player1, player2);
 
     //let (c,s) = net::create_local_clientserver();
     //game::game_loop::run(pool, board);
@@ -75,10 +75,10 @@ fn main() {
 
     if client {
         //net::gameserver::create_client();
-        net::ws_client::connect("ws://127.0.0.1:3012");
+        net::client::connect("ws://127.0.0.1:3012");
     } else {
         //net::gameserver::create_server();
-        net::ws_server::listen("127.0.0.1:3012", pool, board);
+        net::server::listen("127.0.0.1:3012", pool, board);
         info!("Program exit.");
     }
 }

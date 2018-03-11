@@ -1,8 +1,5 @@
-//pub mod gameclient;
-//pub mod gameserver;
-//pub mod message;
-pub mod ws_server;
-pub mod ws_client;
+pub mod server;
+pub mod client;
 mod settings;
 
 //pub use self::message::Message;
@@ -17,7 +14,3 @@ pub trait Networked {
     fn netid(&self) -> u64;
 }
 
-
-pub fn create_client_and_server() {
-
-}

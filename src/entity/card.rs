@@ -72,7 +72,7 @@ impl Card {
     pub fn is_tag_set(&self, key: &TagKey) -> bool {
         match self.tags.get(key) {
             None => false,
-            Some(x) => true,
+            Some(_) => true,
         }
     }
 }

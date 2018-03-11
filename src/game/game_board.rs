@@ -46,7 +46,7 @@ impl GameBoard
 
     pub fn shuffle_decks(&mut self)
     {
-        let mut rng = thread_rng();
+        //let mut rng = thread_rng();
 
         //let mut a = self.p1_zones.deck.as_mut_slice();
         //rng.shuffle(&mut a);
@@ -57,8 +57,8 @@ impl GameBoard
 
     pub fn run_mulligan(&mut self)
     {
-        self.player1.draw_x_cards(5);
-        self.player2.draw_x_cards(5);
+        self.player1.draw_x_cards(5).unwrap();
+        self.player2.draw_x_cards(5).unwrap();
     }
 
     pub fn set_active_player(&mut self, pidx: usize)

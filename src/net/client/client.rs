@@ -1,6 +1,6 @@
 use ws::{self,Result,Request,Response,Message,Handshake,CloseCode,Handler,Error,ErrorKind};
 use ws::Sender as WsSender;
-use ws::util::{Token, Timeout};
+use ws::util::{Token};
 use io;
 use std::thread;
 use std::sync::mpsc::channel;
@@ -10,7 +10,7 @@ use bincode::*;
 pub fn connect(url: &str) {
     let (send,recv) = channel();
     let thread_handle = thread::spawn(move || {
-        for e in recv {
+        for _e in recv {
             info!("e: ");
         }
     });
@@ -23,7 +23,7 @@ pub fn connect(url: &str) {
         }
     }).unwrap();
 
-    //thread_handle.connect();    
+    thread_handle.join().unwrap();   
 }
 //fn def() {
 //    let mut input = String::new();
@@ -45,7 +45,7 @@ pub enum Event {
     Disconnect(CloseCode),
 }
 
-struct Client {
+pub struct Client {
     ws_out: WsSender,
     thread_out: TSender<Event>
 }
@@ -65,7 +65,7 @@ impl Handler for Client {
         info!("Client received WebSocket shutdown request.");
     }
     
-    fn on_open(&mut self, shake: Handshake) -> Result<()> {
+    fn on_open(&mut self, _shake: Handshake) -> Result<()> {
         self.thread_out
             .send(Event::Connect(self.ws_out.clone()))
             .map_err(|err| Error::new(

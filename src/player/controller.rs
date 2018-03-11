@@ -39,7 +39,7 @@ impl Controller
             1 => {
                 match args[0] {
                     "draw" => {
-                        player.draw_x_cards(1);
+                        player.draw_x_cards(1).unwrap();
                     },
                     _ => println!("Unknown command: {:?}", args),
                 }

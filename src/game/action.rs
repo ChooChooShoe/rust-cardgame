@@ -15,6 +15,8 @@ pub enum OkCode {
 /// The type of an error.
 #[derive(Serialize,Deserialize)]
 pub enum Error {
+    /// When an action perfroms when it is not supported.
+    NotSupported,
     /// Indicates an internal prossesing error. 
     Internal,
     /// Indicates an unknown error or error that was expected to happen.
@@ -51,6 +53,7 @@ impl StdError for Error {
             &Error::InvalidTarget    => "Invalid Target",
             &Error::NoTarget         => "No Target",
             &Error::CantPayCost      => "Can't Pay Cost",
+            _ => "No desciption"
         }
     }
     fn cause(&self) -> Option<&StdError> {
@@ -60,6 +63,7 @@ impl StdError for Error {
     }
 }
 
+/// The common version of act impleted for all actions.
 pub trait Act : Sized + fmt::Debug {
     fn perform(&mut self) -> Result;
     fn undo(&mut self) -> Result;
@@ -73,17 +77,27 @@ pub enum Action {
     Error(Error),
     Ok,
     DrawCard(u64),
-    PlayCard(u64)
+
+    // Player stated actions
+    SelfEndTurn,
+    PlayCard(u64),
+    DirectAttack(u64,u64),
+    DeclareAttack(u64,u64),
+
+    // Player responses
+    OnEndTurn(u8),
+
 }
 
 impl Act for Action {
     fn perform(&mut self) -> Result {
-        Ok(OkCode::EchoAction)
+        Err(Error::NotSupported)
     }
     fn undo(&mut self) -> Result {
-        Err(Error::NoTarget)
+        Err(Error::NotSupported)
     }
 }
+
 impl Action { 
     pub fn encode(self) -> Message {
         match self {

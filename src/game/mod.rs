@@ -1,5 +1,6 @@
 pub mod game_board;
 //pub mod game_loop;
+pub mod core;
 pub mod zones;
 pub mod action;
 pub mod command;
@@ -12,5 +13,5 @@ pub use self::action::Error as ActionError;
 pub use self::action::Result as ActionResult;
 pub use self::action::Action as Action;
 
-pub const MAX_PLAYER_COUNT: usize = 2; 
+pub const MAX_PLAYER_COUNT: u8 = 2; 
 pub const MAX_TURNS: u32 = 2; 
