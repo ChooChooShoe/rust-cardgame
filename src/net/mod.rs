@@ -8,8 +8,19 @@ mod settings;
 
 use std::sync::Mutex;
 
-pub enum NetworkMode {None,ClientOnly,ServerOnly,ClientServer}
+#[derive(Eq,PartialEq,Clone,Debug)]
+pub enum NetworkMode {Client,Server,Both}
 
+impl NetworkMode {
+    #[inline]
+    pub fn is_client(&self) -> bool {
+        self != &NetworkMode::Server
+    }
+    #[inline]
+    pub fn is_server(&self) -> bool {
+        self != &NetworkMode::Client
+    }
+}
 pub trait Networked {
     fn netid(&self) -> u64;
 }

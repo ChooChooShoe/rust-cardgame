@@ -12,11 +12,12 @@ use game::core::{self,Event};
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
+use net::NetworkMode;
 
 pub fn listen<A: ToSocketAddrs>(ip: A, pool: CardPool, board: GameBoard) {
     let settings = ServerConfig::from_disk().into();
     let (send, recv) = channel();
-    let thread_handle = thread::spawn(move || core::run(recv));
+    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Server));
 
     let factory = ServerFactory {
         sender: send,
@@ -27,6 +28,7 @@ pub fn listen<A: ToSocketAddrs>(ip: A, pool: CardPool, board: GameBoard) {
     let ws = Builder::new().with_settings(settings).build(factory).unwrap();
 
     ws.listen(ip).unwrap();
+    info!("Waiting for server game thread to close.");
     thread_handle.join().unwrap();
 }
 struct ServerFactory {
@@ -72,29 +74,31 @@ impl Handler for ServerHandle {
         info!("ServerHandle received WebSocket shutdown request.");
     }
 
-    /// Called when the WebSocket handshake is successful and the connection is open for sending
-    /// and receiving messages.
-    fn on_open(&mut self, shake: Handshake) -> Result<()> {
-        if let Some(addr) = try!(shake.remote_addr()) {
-            info!("Connection with {} now open", addr);
+    fn on_open(&mut self, _shake: Handshake) -> Result<()> {
+        self.1.thread_out
+            .send(Event::Connect(self.0.clone()))
+            .map_err(|err| Error::new(
+                ErrorKind::Internal, 
+                format!("Unable to communicate between threads: {:?}.", err)
+            ))
+    }
+
+    fn on_close(&mut self, code: CloseCode, reason: &str) {
+        info!("Connection closing due to ({:?}) {}", code, reason);
+
+        if let Err(err) = self.1.thread_out.send(Event::Disconnect(code)) {
+            error!("Error on conection close: {:?}", err)
         }
-        Ok(())
     }
 
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
         let mut action = Action::decode(msg);
-        match ServerAct::perform(&mut action, &mut self.1) {
-            _ => Ok(()),
-        }
-    }
-
-    /// Called any time this endpoint receives a close control frame.
-    /// This may be because the other endpoint is initiating a closing handshake,
-    /// or it may be the other endpoint confirming the handshake initiated by this endpoint.
-    fn on_close(&mut self, code: CloseCode, reason: &str) {
-        info!("Connection closing due to ({:?}) {}", code, reason);
+        self.1.thread_out.send(Event::TakeAction(action)).map_err(|err| Error::new(
+            ErrorKind::Internal, 
+            format!("Thread channel disconnected")
+        ))
     }
 
     /// Called when an error occurs on the WebSocket.

@@ -6,14 +6,13 @@ use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
 use bincode::*;
+use game::core::{self,Event};
+use game::Action;
+use net::NetworkMode;
 
 pub fn connect(url: &str) {
     let (send,recv) = channel();
-    let thread_handle = thread::spawn(move || {
-        for _e in recv {
-            info!("e: ");
-        }
-    });
+    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Client));
 
     ws::connect(url, |out: WsSender| {
         out.send("Hello WebSocket").unwrap();
@@ -23,6 +22,7 @@ pub fn connect(url: &str) {
         }
     }).unwrap();
 
+    info!("Waiting for game thread to close.");
     thread_handle.join().unwrap();   
 }
 //fn def() {
@@ -38,12 +38,6 @@ pub fn connect(url: &str) {
 //        Err(_e) => Ok(())
 //    }
 //}
-
-// Message from clients to game loop.
-pub enum Event {
-    Connect(WsSender),
-    Disconnect(CloseCode),
-}
 
 pub struct Client {
     ws_out: WsSender,
@@ -85,6 +79,10 @@ impl Handler for Client {
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
         info!("Received message {:?}", msg);
-        Ok(())
+        let mut action = Action::decode(msg);
+        self.thread_out.send(Event::TakeAction(action)).map_err(|err| Error::new(
+            ErrorKind::Internal, 
+            format!("Thread channel disconnected")
+        ))
     }
 }

@@ -8,13 +8,14 @@ use game::zones::Location;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::thread;
-use std::sync::mpsc::{Receiver,RecvError};
+use std::sync::mpsc::{Receiver,RecvError,RecvTimeoutError};
 use std::time::{Duration, Instant};
 use game::{MAX_PLAYER_COUNT,MAX_TURNS};
 use utils::timer::Timer;
 
 use ws::{Sender as WsSender,CloseCode};
 use game::Action;
+use net::NetworkMode;
 
 // Message from clients to game loop.
 pub enum Event {
@@ -23,22 +24,53 @@ pub enum Event {
     Disconnect(CloseCode),
 }
 
-pub fn run(recv: Receiver<Event>) {
+pub enum Connection {
+
+}
+pub fn run(recv: Receiver<Event>, mode: NetworkMode) {
     let game_start_time = Instant::now();
-    println!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
+    info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
+
+    info!("Waiting for connections");
+    let mut connection_count = 0u8;
+
+    loop {
+        match recv.recv_timeout(Duration::from_millis(500)) {
+            Ok(Event::Connect(send)) => {
+                info!("Core got connection");
+                
+                match mode {
+                    NetworkMode::Client => {
+                        connection_count = 1;
+                        break;
+                    }
+                    NetworkMode::Server => {
+                        connection_count += 1;
+                        if connection_count >= MAX_PLAYER_COUNT {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Ok(_) => unreachable!(),
+            Err(RecvTimeoutError::Timeout) => { warn!("Could not connect: Channel timeout"); return }
+            Err(RecvTimeoutError::Disconnected) => { warn!("Could not connect: Channel dropped"); return }
+        }
+    }
 
     if let Ok(Event::Connect(send)) = recv.recv() {
         info!("Core got connection");
         for event in recv.into_iter() {
             match event {
                 Event::TakeAction(a) => {
-                    info!("PLayer action!")
+                    info!("PLayer action! (c)")
                 }
                 Event::Connect(sender) => {
-                    info!("PLayer joined")
+                    info!("server joined?????")
                 }
                 Event::Disconnect(code) => {
-                    info!("PLayer left")
+                    info!("server lost")
                 }
             }
         }
