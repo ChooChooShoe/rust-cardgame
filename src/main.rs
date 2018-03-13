@@ -13,6 +13,7 @@ extern crate log;
 
 extern crate ws;
 extern crate bincode;
+extern crate url;
 extern crate serde;
 extern crate serde_json;
 //extern crate fluent;
@@ -25,6 +26,7 @@ mod game;
 mod net;
 mod player;
 mod utils;
+mod vecmap;
 
 use player::Controller;
 use log::{Level,Metadata,Record};
@@ -47,21 +49,17 @@ fn main() {
 
     for i in 0..20
     {
-        
-    let mut c = Card::new(10000 + i, &format!("Card #{:03}", i));
-    c.insert_tag(TagKey::Attack, TagVal::Int(7 + i as i32));
-    c.insert_tag(TagKey::Health, TagVal::Int(9 + i as i32));
-    c.insert_tag(TagKey::Cost, TagVal::Float(3.5 * i as f32));
-    c.insert_tag(TagKey::Damage, TagVal::Bool(true));
-    pool.all_cards.insert(format!("auto_gen_card_{:03}", i), c);
+        let mut c = Card::new(10000 + i, &format!("Card #{:03}", i));
+        c.insert_tag(TagKey::Attack, TagVal::Int(7 + i as i32));
+        c.insert_tag(TagKey::Health, TagVal::Int(9 + i as i32));
+        c.insert_tag(TagKey::Cost, TagVal::Float(3.5 * i as f32));
+        c.insert_tag(TagKey::Damage, TagVal::Bool(true));
+        pool.all_cards.insert(format!("auto_gen_card_{:03}", i), c);
     }
 
     write_test(&pool).expect("Unable to write to card database");
     read_test().expect("Unable to load card database");
 
-    let player1 = Player::new(1,String::from("player #1"));
-    let player2 = Player::new(2,String::from("player #2"));
-    let board = game::GameBoard::new(42, player1, player2);
 
     //let (c,s) = net::create_local_clientserver();
     //game::game_loop::run(pool, board);
@@ -73,14 +71,17 @@ fn main() {
         }
     }
 
+    let player1 = Player::new(1,String::from("player #1"));
+    let player2 = Player::new(2,String::from("player #2"));
+    let board = game::GameBoard::new(42, player1, player2);
+    let game = ::game::Game::new(board,pool);
+
     if client {
-        //net::gameserver::create_client();
-        net::client::connect("ws://127.0.0.1:3012");
+        net::client::connect("ws://127.0.0.1:3012", game);
     } else {
-        //net::gameserver::create_server();
-        net::server::listen("127.0.0.1:3012", pool, board);
-        info!("Program exit.");
+        net::server::listen("127.0.0.1:3012", game);
     }
+    info!("Program exit.");
 }
 
 fn write_test(card_collection: &CardPool) -> io::Result<()>

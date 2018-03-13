@@ -43,7 +43,7 @@ impl Location
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct ZoneCollection
 {
     pub player: u64,

@@ -4,21 +4,23 @@ use std::error::Error as StdError;
 use std::convert::{From, Into};
 use bincode::*;
 
+use game::Game;
 use ws::Message;
 
 pub type Result = StdResult<OkCode, Error>;
 
+#[derive(Serialize,Deserialize,Clone,Debug,Eq,PartialEq)]
 pub enum OkCode {
     Nothing,
     EchoAction,
 }
 /// The type of an error.
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone,Eq,PartialEq)]
 pub enum Error {
     /// When an action perfroms when it is not supported.
     NotSupported,
     /// Indicates an internal prossesing error. 
-    Internal,
+    Internal(String),
     /// Indicates an unknown error or error that was expected to happen.
     Generic,
     /// When an invalid target was given.
@@ -29,9 +31,15 @@ pub enum Error {
     CantPayCost,
 }
 
+impl Error  {
+    pub fn from<T: StdError>(e: T) -> Error {
+        Error::Internal(e.description().to_string())
+    }
+}
+
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Action Responce Error {}", self)
+        write!(f, "Action Error {}", self)
     }
 }
 
@@ -48,7 +56,7 @@ impl fmt::Display for Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match self {
-            &Error::Internal         => "Internal Application Error",
+            &Error::Internal(_)      => "Internal Application Error",
             &Error::Generic          => "Generic Error",
             &Error::InvalidTarget    => "Invalid Target",
             &Error::NoTarget         => "No Target",
@@ -65,8 +73,8 @@ impl StdError for Error {
 
 /// The common version of act impleted for all actions.
 pub trait Act : Sized + fmt::Debug {
-    fn perform(&mut self) -> Result;
-    fn undo(&mut self) -> Result;
+    fn perform(self, game: &Game) -> Result;
+    fn undo(self, game: &Game) -> Result;
 }
 
 #[derive(Debug,Serialize,Deserialize)]
@@ -74,9 +82,9 @@ pub enum Action {
     Text(String),
     Empty,
     Invalid,
-    Error(Error),
+    Error,
     Ok,
-    DrawCard(u64),
+    DrawCard(u8,usize),
 
     // Player stated actions
     SelfEndTurn,
@@ -85,15 +93,23 @@ pub enum Action {
     DeclareAttack(u64,u64),
 
     // Player responses
-    OnEndTurn(u8),
+    EndTurn(u8),
 
 }
 
 impl Act for Action {
-    fn perform(&mut self) -> Result {
-        Err(Error::NotSupported)
+    fn perform(self, game: &Game) -> Result {
+        match self {
+            Action::EndTurn(p) => {
+                game.board_lock().player_mut(p).draw_x_cards(1)
+            }
+            Action::DrawCard(pid,amount) => {
+                game.board_lock().player_mut(pid).draw_x_cards(amount)
+            }
+            _ => Err(Error::NotSupported)
+        }
     }
-    fn undo(&mut self) -> Result {
+    fn undo(self, game: &Game) -> Result {
         Err(Error::NotSupported)
     }
 }

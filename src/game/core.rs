@@ -13,42 +13,44 @@ use std::time::{Duration, Instant};
 use game::{MAX_PLAYER_COUNT,MAX_TURNS};
 use utils::timer::Timer;
 
-use ws::{Sender as WsSender,CloseCode};
-use game::Action;
+use ws::{Sender as WsSender,CloseCode, Error as WsError};
+use game::action::{Act,Action};
+use game::Game;
 use net::NetworkMode;
+use vecmap::VecMap;
 
 // Message from clients to game loop.
 pub enum Event {
-    Connect(WsSender),
-    TakeAction(Action),
-    Disconnect(CloseCode),
+    Connect(WsSender, u8),
+    TakeAction(Action, u8),
+    Disconnect(CloseCode, u8),
+    WsError(WsError, u8),
 }
 
 pub enum Connection {
 
 }
-pub fn run(recv: Receiver<Event>, mode: NetworkMode) {
+pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     let game_start_time = Instant::now();
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
-
+   
     info!("Waiting for connections");
-    let mut connection_count = 0u8;
+    let mut connections = VecMap::new();
 
     loop {
+        // try every 500ms to get a connection. break when we can start game.
         match recv.recv_timeout(Duration::from_millis(500)) {
-            Ok(Event::Connect(send)) => {
+            Ok(Event::Connect(send,pid)) => {
                 info!("Core got connection");
                 
                 match mode {
-                    NetworkMode::Client => {
-                        connection_count = 1;
-                        break;
+                    NetworkMode::Client => { // client makes one coonection to host/server
+                        assert_eq!(pid,0); //host is always pid 0
+                        connections.push(send);
+                        break
                     }
                     NetworkMode::Server => {
-                        connection_count += 1;
-                        if connection_count >= MAX_PLAYER_COUNT {
-                            break;
-                        }
+                        connections.insert(pid as usize, send);
                     }
                     _ => {}
                 }
@@ -58,24 +60,32 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode) {
             Err(RecvTimeoutError::Disconnected) => { warn!("Could not connect: Channel dropped"); return }
         }
     }
+    
+    info!("Game Started");
 
-    if let Ok(Event::Connect(send)) = recv.recv() {
-        info!("Core got connection");
-        for event in recv.into_iter() {
-            match event {
-                Event::TakeAction(a) => {
-                    info!("PLayer action! (c)")
-                }
-                Event::Connect(sender) => {
-                    info!("server joined?????")
-                }
-                Event::Disconnect(code) => {
-                    info!("server lost")
+    for event in recv.into_iter() {
+        match event {
+            Event::TakeAction(mut a, pid) => {
+                info!("PLayer action!: action = {:?}, pid = {}", a, pid);
+                match a.perform(&game) {
+                    Ok(code) => info!("action: {:?}",code),
+                    Err(e) => info!("action: {:?}",e),
                 }
             }
+            Event::Connect(sender, pid) => {
+                info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
+            }
+            Event::Disconnect(code, pid) => {
+                if mode == NetworkMode::Client {
+                    info!("server lost: code = {:?}, pid = {}", code, pid);
+                    break
+                }
+                info!("connection lost: code = {:?}, pid = {}", code, pid)
+            }
+            Event::WsError(err, pid) => {
+                break
+            }
         }
-    } else {
-        warn!("First event was not a Connect event as required.");
     }
     //setup_decks(&pool, &mut board);
 

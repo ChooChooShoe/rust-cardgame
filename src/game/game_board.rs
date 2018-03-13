@@ -9,6 +9,7 @@ use serde::{Serialize,Deserialize};
 use game::Zone;
 use net::Networked;
 
+#[derive(Clone)]
 pub struct GameBoard
 {
     pub uid: u64,
@@ -28,16 +29,16 @@ impl GameBoard
             active_player_pidx: 0,
         }
     }
-    pub fn player_count(&self) -> usize {2}
+    pub fn player_count(&self) -> u8 {2}
 
-    pub fn player(&self, idx: usize) -> &Player {
+    pub fn player(&self, idx: u8) -> &Player {
         match idx {
             1 => &self.player1,
             _ => &self.player2,
         }
     }
 
-    pub fn player_mut(&mut self, idx: usize) -> &mut Player {
+    pub fn player_mut(&mut self, idx: u8) -> &mut Player {
         match idx {
             1 => &mut self.player1,
             _ => &mut self.player2,
@@ -75,4 +76,5 @@ impl GameBoard
             _ => &mut self.player2,
         }
     }
+
 }

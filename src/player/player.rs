@@ -7,9 +7,11 @@ use entity::Card;
 use game::ZoneCollection;
 use player::controller::Controller;
 use game::zones::{Zone,Location};
+use game::action::{Error,OkCode,Result};
 
 // This is the players reprsentation in the game.
 // Player owns the cards and the moves.
+#[derive(Clone)]
 pub struct Player
 {
     pub pidx: usize,
@@ -47,7 +49,7 @@ impl Player
 
 
     
-    pub fn draw_x_cards(&mut self, x: usize) -> Result<(),()>
+    pub fn draw_x_cards(&mut self, x: usize) -> Result
     {
         let drawn_cards = self.zones.deck.take_x_cards(x, Location::Top);
 
@@ -64,6 +66,6 @@ impl Player
             }
         }
         self.zones.hand.add_cards(cards_to_add,Location::Top);
-        Ok(())
+        Ok(OkCode::Nothing)
     }
 }

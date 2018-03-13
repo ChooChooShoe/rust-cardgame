@@ -13,17 +13,18 @@ use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
 use net::NetworkMode;
+use game::Game;
 
-pub fn listen<A: ToSocketAddrs>(ip: A, pool: CardPool, board: GameBoard) {
+pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
     let settings = ServerConfig::from_disk().into();
     let (send, recv) = channel();
-    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Server));
+    let h_game = game.clone();
+    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Server, h_game));
 
     let factory = ServerFactory {
         sender: send,
-        pool,
-        board,
-        last_bid: 0,
+        game,
+        last_pid: 0u8,
     };
     let ws = Builder::new().with_settings(settings).build(factory).unwrap();
 
@@ -33,19 +34,19 @@ pub fn listen<A: ToSocketAddrs>(ip: A, pool: CardPool, board: GameBoard) {
 }
 struct ServerFactory {
     sender: TSender<Event>,
-    pool: CardPool,
-    board: GameBoard,
-    last_bid: u8,
+    game: Game,
+    last_pid: u8,
 }
 impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        let s = ServerHandle (out, Stage {
+        let s = ServerHandle {
+            ws_out: out,
             thread_out: self.sender.clone(),
-            bid: self.last_bid,
-        });
-        self.last_bid += 1;
+            pid: self.last_pid,
+        };
+        self.last_pid += 1;
         s
     }
     fn connection_lost(&mut self, _: ServerHandle) {
@@ -53,20 +54,17 @@ impl Factory for ServerFactory {
     }
 }
 
-pub struct Stage {
-    thread_out: TSender<Event>,
-    bid: u8,
-}
-
-impl Stage {
-    fn new(thread_out: TSender<Event>, bid: u8) -> Stage {
-        Stage { thread_out, bid }
-    }
-}
-
 /// Represents one player's connection to us (the ServerHandle)
-pub struct ServerHandle(WsSender, Stage);
+pub struct ServerHandle{
+    ws_out: WsSender,
+    thread_out: TSender<Event>,
+    pid: u8,
+}
 
+fn thread_err<E: ::std::error::Error>(e: E, pid: u8) -> Error {
+    Error::new(ErrorKind::Internal,
+        format!("Unable to communicate between threads for pid {} : {:?}.", pid, e))
+}
 impl Handler for ServerHandle {
     /// Called when a request to shutdown all connections has been received.
     #[inline]
@@ -75,30 +73,23 @@ impl Handler for ServerHandle {
     }
 
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
-        self.1.thread_out
-            .send(Event::Connect(self.0.clone()))
-            .map_err(|err| Error::new(
-                ErrorKind::Internal, 
-                format!("Unable to communicate between threads: {:?}.", err)
-            ))
+        let event = Event::Connect(self.ws_out.clone(), self.pid);
+        self.thread_out.send(event).map_err(|e| thread_err(e,self.pid))
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         info!("Connection closing due to ({:?}) {}", code, reason);
 
-        if let Err(err) = self.1.thread_out.send(Event::Disconnect(code)) {
-            error!("Error on conection close: {:?}", err)
+        if let Err(err) = self.thread_out.send(Event::Disconnect(code, self.pid)) {
+            error!("Error on conection close (pid:{}): {:?}", self.pid, err)
         }
     }
 
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        info!("Received message {:?}", msg);
-        let mut action = Action::decode(msg);
-        self.1.thread_out.send(Event::TakeAction(action)).map_err(|err| Error::new(
-            ErrorKind::Internal, 
-            format!("Thread channel disconnected")
-        ))
+        let action = Action::decode(msg);
+        info!("Received action {:?}", action);
+        self.thread_out.send(Event::TakeAction(action, self.pid)).map_err(|e| thread_err(e,self.pid))
     }
 
     /// Called when an error occurs on the WebSocket.
@@ -140,8 +131,26 @@ impl Handler for ServerHandle {
     /// ```
     #[inline]
     fn on_request(&mut self, req: &Request) -> Result<Response> {
-        info!("ServerHandle received request.");
-        Response::from_request(req)
+        info!("Server received request.\n----\n{:?}\n----\n", req);
+        let mut res = try!(Response::from_request(req));
+        if try!(req.protocols()).iter().find(|&&proto| proto.contains("player.rust-cardgame")).is_some() {
+            res.set_protocol("player.rust-cardgame");
+            res.headers_mut().push((format!("Rust-Cardgame-PlayerId"), self.pid.to_string().into_bytes()));
+            
+            if let Some(header) = req.headers().iter().find(|ref header| header.0.contains("Rust-Cardgame-Version")) {
+                match &header.1[..] {
+                    b"100" => {
+                        info!("sending: {:?}", res);
+                        Ok(res)
+                    },
+                    _ => Err(Error::new(ErrorKind::Protocol, format!("Version Missmatch: Expected 1.0.0 got {:?}", header.1)))
+                }
+            } else {
+                Err(Error::new(ErrorKind::Protocol, "No Rust-Cardgame-Version given but is required."))
+            }
+        } else {
+            Err(Error::new(ErrorKind::Protocol, "Protocol player.rust-cardgame is required."))
+        }
     }
 
     /// A method for handling the low-level workings of the response portion of the WebSocket
@@ -153,7 +162,7 @@ impl Handler for ServerHandle {
     /// has agreed to if any.
     #[inline]
     fn on_response(&mut self, res: &Response) -> Result<()> {
-        info!("ServerHandle received response.");
+        info!("ServerHandle received response??");
         Ok(())
     }
 
