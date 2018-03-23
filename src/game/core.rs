@@ -1,7 +1,7 @@
 use game::GameBoard;
 use player::Player;
 use player::Controller;
-use entity::card::CardPool;
+use entity::CardPool;
 use game::Zone;
 use game::ZoneCollection;
 use game::zones::Location;
@@ -14,7 +14,7 @@ use game::{MAX_PLAYER_COUNT,MAX_TURNS};
 use utils::timer::Timer;
 
 use ws::{Sender as WsSender,CloseCode, Error as WsError};
-use game::action::{Act,Action};
+use game::action::{Act,Action,ClientAction};
 use game::Game;
 use net::NetworkMode;
 use vecmap::VecMap;
@@ -22,6 +22,8 @@ use vecmap::VecMap;
 // Message from clients to game loop.
 pub enum Event {
     Connect(WsSender, u8),
+    /// When we as a server got a Action from thte client.
+    OnClientAction(ClientAction, u8),
     TakeAction(Action, u8),
     Disconnect(CloseCode, u8),
     WsError(WsError, u8),
@@ -63,14 +65,22 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     
     info!("Game Started");
 
+    let mut active_player = 0;
+    let mut turn_count = 0;
+
     for event in recv.into_iter() {
         match event {
             Event::TakeAction(mut a, pid) => {
                 info!("PLayer action!: action = {:?}, pid = {}", a, pid);
                 match a.perform(&game) {
-                    Ok(code) => info!("action: {:?}",code),
-                    Err(e) => info!("action: {:?}",e),
+                    Ok(code) => info!("action: {:?}", code),
+                    Err(e) => info!("action: {:?}", e),
                 }
+            }
+            Event::OnClientAction(action, pid) => {
+                info!("client action!: action = {:?}, pid = {}", action, pid);
+                let _con = connections.get(pid as usize).unwrap();
+
             }
             Event::Connect(sender, pid) => {
                 info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)

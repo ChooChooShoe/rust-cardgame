@@ -11,12 +11,34 @@ const DEF_LIMBO_SIZE : usize = 0;
 const DEF_GRAVEYARD_SIZE : usize = 0;
 const MAX_CARDS_IN_HAND : usize = 10;
 
+#[derive(Debug,Clone,Deserialize,Serialize)]
+pub enum ZoneName {
+    Banished,
+    Battlefield,
+    Deck,
+    Limbo,
+    Graveyard,
+    Hand,
+}
+impl ZoneName {
+    pub fn match_zone<'a>(&self, zones: &'a mut ZoneCollection) -> &'a mut Zone {
+        match self {
+            &ZoneName::Banished => &mut zones.banished,
+            &ZoneName::Battlefield => &mut zones.battlefield,
+            &ZoneName::Deck => &mut zones.deck,
+            &ZoneName::Limbo => &mut zones.limbo,
+            &ZoneName::Graveyard => &mut zones.graveyard,
+            &ZoneName::Hand => &mut zones.hand,
+        }
+    }
+}
 pub trait Zone
 {
-    fn add_card(&mut self, RefCell<Card>, Location);
-    fn add_cards(&mut self, Vec<RefCell<Card>>, Location);
-    fn take_card(&mut self, Location) -> Option<RefCell<Card>>;
-    fn take_x_cards(&mut self, x: usize, Location) -> Vec<Option<RefCell<Card>>>;
+    fn push(&mut self, Card);
+    fn add_card(&mut self, Card, Location);
+    fn add_cards(&mut self, Vec<Card>, Location);
+    fn take_card(&mut self, Location) -> Option<Card>;
+    fn take_x_cards(&mut self, x: usize, Location) -> Vec<Option<Card>>;
 }
 
 pub enum Location {Top,Bottom,Random}
@@ -47,22 +69,25 @@ impl Location
 pub struct ZoneCollection
 {
     pub player: u64,
-    pub banished: Vec<RefCell<Card>>,
-    pub battlefield: Vec<RefCell<Card>>,
-    pub deck: Vec<RefCell<Card>>,
-    pub limbo: Vec<RefCell<Card>>,
-    pub graveyard: Vec<RefCell<Card>>,
-    pub hand: Vec<RefCell<Card>>,
+    pub banished: Vec<Card>,
+    pub battlefield: Vec<Card>,
+    pub deck: Vec<Card>,
+    pub limbo: Vec<Card>,
+    pub graveyard: Vec<Card>,
+    pub hand: Vec<Card>,
 }
 
-impl Zone for Vec<RefCell<Card>> {
+impl Zone for Vec<Card> {
 
-    fn add_card(&mut self, card: RefCell<Card>, location: Location)
+    fn push(&mut self, card: Card) {
+        Vec::push(self, card)
+    }
+    fn add_card(&mut self, card: Card, location: Location)
     {
         location.insert(self, card)
     }
 
-    fn add_cards(&mut self, cards: Vec<RefCell<Card>>, location: Location)
+    fn add_cards(&mut self, cards: Vec<Card>, location: Location)
     {
         for c in cards
         {
@@ -70,12 +95,12 @@ impl Zone for Vec<RefCell<Card>> {
         }
     }
 
-    fn take_card(&mut self, location: Location) -> Option<RefCell<Card>>
+    fn take_card(&mut self, location: Location) -> Option<Card>
     {
         location.remove(self)
     }
 
-    fn take_x_cards(&mut self, x: usize, location: Location) -> Vec<Option<RefCell<Card>>>
+    fn take_x_cards(&mut self, x: usize, location: Location) -> Vec<Option<Card>>
     {
         let mut vec = Vec::with_capacity(x);
         for _ in 0..x {

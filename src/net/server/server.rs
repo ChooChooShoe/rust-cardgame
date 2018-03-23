@@ -1,4 +1,4 @@
-use entity::card::CardPool;
+use entity::CardPool;
 use game::GameBoard;
 use std::net::ToSocketAddrs;
 use ws::{Builder, CloseCode, Error, ErrorKind, Factory, Frame, Handler, Handshake, Message,
@@ -6,14 +6,14 @@ use ws::{Builder, CloseCode, Error, ErrorKind, Factory, Frame, Handler, Handshak
 use ws::Sender as WsSender;
 use ws::util::Token;
 use net::settings::ServerConfig;
-use net::server::action::ServerAct;
-use game::action::{Act, Action, Error as ActionError, OkCode};
+use game::{Action, ActionError, OkCode};
 use game::core::{self,Event};
 use std::thread;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
 use net::NetworkMode;
 use game::Game;
+use game::ClientAction;
 
 pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
     let settings = ServerConfig::from_disk().into();
@@ -41,13 +41,12 @@ impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        let s = ServerHandle {
+        self.last_pid += 1;
+        ServerHandle {
             ws_out: out,
             thread_out: self.sender.clone(),
             pid: self.last_pid,
-        };
-        self.last_pid += 1;
-        s
+        }
     }
     fn connection_lost(&mut self, _: ServerHandle) {
         warn!("Connection lost.");
@@ -87,9 +86,9 @@ impl Handler for ServerHandle {
 
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        let action = Action::decode(msg);
+        let action = ClientAction::decode(msg);
         info!("Received action {:?}", action);
-        self.thread_out.send(Event::TakeAction(action, self.pid)).map_err(|e| thread_err(e,self.pid))
+        self.thread_out.send(Event::OnClientAction(action, self.pid)).map_err(|e| thread_err(e,self.pid))
     }
 
     /// Called when an error occurs on the WebSocket.

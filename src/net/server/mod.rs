@@ -1,4 +1,3 @@
-pub mod action;
 mod server;
 
 //pub use self::action;

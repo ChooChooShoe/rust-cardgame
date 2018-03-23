@@ -3,11 +3,13 @@ use std::io;
 use serde::{Serialize,Deserialize};
 use net;
 
+use game::Deck;
 use entity::Card;
 use game::ZoneCollection;
 use player::controller::Controller;
 use game::zones::{Zone,Location};
-use game::action::{Error,OkCode,Result};
+use entity::CardPool;
+use game::{ActionError,OkCode,ActionResult};
 
 // This is the players reprsentation in the game.
 // Player owns the cards and the moves.
@@ -15,7 +17,8 @@ use game::action::{Error,OkCode,Result};
 pub struct Player
 {
     pub pidx: usize,
-    pub name: String, 
+    pub name: String,
+    pub deck: Option<Deck>,
     pub zones: ZoneCollection,
 }
 
@@ -27,7 +30,7 @@ impl net::Networked for Player
 impl Player
 {
     pub fn new(pidx: usize, name: String) -> Player {
-        Player { pidx, name, zones: ZoneCollection::new(42) }
+        Player { pidx, name, deck: None, zones: ZoneCollection::new(42) }
     }
 
     pub fn name(&self) -> &str { self.name.as_str() }
@@ -47,9 +50,20 @@ impl Player
         &mut self.zones
     }
 
-
+    pub fn set_deck(&mut self, deck: Deck, pool: &CardPool, start_netid: u64) -> u64 {
+        let mut id = start_netid;
+        for entry in deck.cards().iter() {
+            let z = entry.zone.match_zone(self.zones_mut());
+            for _ in 0..entry.count {
+                z.push(Card::from_generic_id(pool, id, entry.card));
+                id += 1;
+            }
+        }
+        self.deck = Some(deck);
+        id
+    }
     
-    pub fn draw_x_cards(&mut self, x: usize) -> Result
+    pub fn draw_x_cards(&mut self, x: usize) -> ActionResult
     {
         let drawn_cards = self.zones.deck.take_x_cards(x, Location::Top);
 
@@ -58,7 +72,7 @@ impl Player
         for c in drawn_cards{
             match c{
                 Some(card) => {
-                    info!("on_card_drawn: deck -> hand : {:?}", card.borrow().name());
+                    info!("on_card_drawn: deck -> hand : {:?}", card.name());
                     cards_to_add.push(card);
                 },
                 None => 

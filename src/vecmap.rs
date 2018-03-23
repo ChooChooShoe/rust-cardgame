@@ -61,6 +61,9 @@ impl<V> VecMap<V> {
     pub fn push(&mut self, value: V) {
         self.0.push(Some(value))
     }
-
+    pub fn iter(&self) -> Iter<Option<V>> {
+        self.0.iter()
+    }
     // TODO: the other map and vac functions.
 }
+use std::slice::Iter;

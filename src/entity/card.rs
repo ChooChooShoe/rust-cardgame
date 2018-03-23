@@ -1,17 +1,21 @@
+use entity::cardpool::CardPool;
+use entity::cardpool::CardData;
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
+use std::sync::RwLock;
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+pub type CardId = u64;
+
+#[derive(Clone, Debug)]
 pub struct Card {
     netid: u64,
-    name: String,
-    text: String,
-    tags: HashMap<TagKey, TagVal>,
+    data: CardData
 }
 
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{} ({} tags)", self.name, self.netid, self.tags.len())
+        write!(f, "{}:{} ({} tags)", self.name(), self.netid, self.tags().len())
     }
 }
 
@@ -19,73 +23,35 @@ impl Card {
     pub fn new(netid: u64, name: &str) -> Card {
         Card {
             netid,
-            name: String::from(name),
-            text: String::new(),
-            tags: HashMap::with_capacity(8),
+            data: CardData::new(name)
+        }
+    }
+    pub fn from_generic_id(pool: &CardPool, netid: u64, card_id: u64) -> Card {
+        Card {
+            netid,
+            data: pool.get_clone(card_id)
         }
     }
 
+    #[inline]
     pub fn name(&self) -> &str {
-        self.name.as_str()
+        self.data.name()
     }
-
-    pub fn tags(&mut self) -> &mut HashMap<TagKey, TagVal> {
-        &mut self.tags
+    #[inline]
+    pub fn tags(&self) -> &HashMap<TagKey,TagVal> {
+        self.data.tags()
     }
-
+    #[inline]
+    pub fn tags_mut(&mut self) -> &mut HashMap<TagKey,TagVal> {
+        self.data.tags_mut()
+    }
+    #[inline]
     pub fn insert_tag(&mut self, key: TagKey, val: TagVal) -> Option<TagVal> {
-        self.tags.insert(key, val)
+        self.tags_mut().insert(key, val)
     }
-
+    #[inline]
     pub fn remove_tag(&mut self, key: &TagKey) -> Option<TagVal> {
-        self.tags.remove(key)
-    }
-
-    pub fn to_tag_bool(&self, key: &TagKey) -> bool {
-        match self.tags.get(key) {
-            None => false,
-            Some(x) => x.to_bool(),
-        }
-    }
-
-    pub fn get_tag_i32(&self, key: &TagKey) -> i32 {
-        match self.tags.get(key) {
-            None => 0,
-            Some(x) => x.to_i32(),
-        }
-    }
-
-    pub fn get_tag_f32(&self, key: &TagKey) -> f32 {
-        match self.tags.get(key) {
-            None => 0.0,
-            Some(x) => x.to_f32(),
-        }
-    }
-
-    pub fn get_tag_f32_or(&self, key: &TagKey, or: f32) -> f32 {
-        match self.tags.get(key) {
-            None => or,
-            Some(x) => x.to_f32(),
-        }
-    }
-
-    pub fn is_tag_set(&self, key: &TagKey) -> bool {
-        match self.tags.get(key) {
-            None => false,
-            Some(_) => true,
-        }
-    }
-}
-
-pub struct CardPool {
-    pub all_cards: HashMap<String, Card>,
-}
-
-impl CardPool {
-    pub fn new() -> CardPool {
-        CardPool {
-            all_cards: HashMap::new(),
-        }
+        self.tags_mut().remove(key)
     }
 }
 
@@ -123,9 +89,23 @@ impl From<bool> for TagVal {
         TagVal::Bool(b)
     }
 }
-
+impl Into<i32> for TagVal {
+    fn into(self) -> i32 {
+        self.as_i32()
+    }
+}
+impl Into<f32> for TagVal {
+    fn into(self) -> f32 {
+        self.as_f32()
+    }
+}
+impl Into<bool> for TagVal {
+    fn into(self) -> bool {
+        self.as_bool()
+    }
+}
 impl TagVal {
-    pub fn to_bool(&self) -> bool {
+    pub fn as_bool(&self) -> bool {
         match self {
             &TagVal::Bool(x) => x,
             &TagVal::Float(x) => x == 1.0,
@@ -133,8 +113,7 @@ impl TagVal {
             &TagVal::Pair(x, _) => x != 0,
         }
     }
-
-    pub fn to_i32(&self) -> i32 {
+    pub fn as_i32(&self) -> i32 {
         match self {
             &TagVal::Bool(x) => x as i32,
             &TagVal::Float(x) => x as i32,
@@ -142,8 +121,7 @@ impl TagVal {
             &TagVal::Pair(x, _) => x,
         }
     }
-
-    pub fn to_f32(&self) -> f32 {
+    pub fn as_f32(&self) -> f32 {
         match self {
             &TagVal::Bool(x) => if x { 1.0 } else { 0.0 },
             &TagVal::Float(x) => x,

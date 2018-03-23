@@ -22,7 +22,7 @@ pub fn connect<U: Borrow<str>>(url: U, game: Game) {
     ws::connect(url, |out: WsSender| {
         out.send(Action::DirectAttack(10,20).encode()).unwrap();
         out.send(Action::EndTurn(2).encode()).unwrap();
-        out.send(Action::DrawCard(0,5).encode()).unwrap();
+        out.send(Action::DrawCardAnon(0,5).encode()).unwrap();
         Client::new(out, game.clone(), send.clone())
     }).unwrap();
 

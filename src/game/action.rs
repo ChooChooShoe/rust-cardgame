@@ -1,76 +1,51 @@
+use player::PlayerId;
 use std::fmt;
 use std::result::Result as StdResult;
 use std::error::Error as StdError;
 use std::convert::{From, Into};
-use bincode::*;
-
+use bincode::{serialize,deserialize,ErrorKind};
+use game::action_result::{Result,Error,OkCode};
 use game::Game;
+use game::Deck;
 use ws::Message;
 
-pub type Result = StdResult<OkCode, Error>;
-
-#[derive(Serialize,Deserialize,Clone,Debug,Eq,PartialEq)]
-pub enum OkCode {
-    Nothing,
-    EchoAction,
+/// Actions created by the client and send to the server.
+#[derive(Debug,Serialize,Deserialize)]
+pub enum ClientAction {
+    Invalid,
+    ChatMessage(),
+    ReadyForGameStart,
+    MuligunResults(),
+    PlayCardFromHand(),
+    DeclareAttack(),
+    ChoiceResults(),
+    EndTurn,
 }
-/// The type of an error.
-#[derive(Serialize,Deserialize,Clone,Eq,PartialEq)]
-pub enum Error {
-    /// When an action perfroms when it is not supported.
-    NotSupported,
-    /// Indicates an internal prossesing error. 
-    Internal(String),
-    /// Indicates an unknown error or error that was expected to happen.
-    Generic,
-    /// When an invalid target was given.
-    InvalidTarget,
-    /// When a target was needed and none were given or avalable.
-    NoTarget,
-    /// When the cost is too high.
-    CantPayCost,
-}
-
-impl Error  {
-    pub fn from<T: StdError>(e: T) -> Error {
-        Error::Internal(e.description().to_string())
+impl ClientAction { 
+    pub fn encode(self) -> Message {
+        Message::Binary(serialize(&self).unwrap())
     }
-}
 
-impl fmt::Debug for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Action Error {}", self)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(cause) = self.cause() {
-            write!(f, "{}: {}", self.description(), cause.description())
-        } else {
-            write!(f, "{}", self.description())
+    pub fn decode(msg: Message) -> Self {
+        match deserialize(&msg.into_data()[..]) {
+            Ok(action) => action,
+            Err(boxed) => {
+                warn!("Decoded invalid message: {:?}", boxed.as_ref());
+                match *boxed {
+                    ErrorKind::Io(_e) => ClientAction::Invalid, //Error
+                    ErrorKind::InvalidUtf8Encoding(_e) => ClientAction::Invalid, // Utf8Error
+                    ErrorKind::InvalidBoolEncoding(_d) => ClientAction::Invalid,
+                    ErrorKind::InvalidCharEncoding => ClientAction::Invalid,
+                    ErrorKind::InvalidTagEncoding(_d) => ClientAction::Invalid,
+                    ErrorKind::DeserializeAnyNotSupported => ClientAction::Invalid,
+                    ErrorKind::SizeLimit => ClientAction::Invalid,
+                    ErrorKind::SequenceMustHaveLength => ClientAction::Invalid,
+                    ErrorKind::Custom(_s) => ClientAction::Invalid
+                }
+            }
         }
     }
 }
-
-impl StdError for Error {
-    fn description(&self) -> &str {
-        match self {
-            &Error::Internal(_)      => "Internal Application Error",
-            &Error::Generic          => "Generic Error",
-            &Error::InvalidTarget    => "Invalid Target",
-            &Error::NoTarget         => "No Target",
-            &Error::CantPayCost      => "Can't Pay Cost",
-            _ => "No desciption"
-        }
-    }
-    fn cause(&self) -> Option<&StdError> {
-        match self {
-            _ => None,
-        }
-    }
-}
-
 /// The common version of act impleted for all actions.
 pub trait Act : Sized + fmt::Debug {
     fn perform(self, game: &Game) -> Result;
@@ -84,7 +59,9 @@ pub enum Action {
     Invalid,
     Error,
     Ok,
-    DrawCard(u8,usize),
+    DrawCardKnown(u8,usize),
+    DrawCardAnon(u8,usize),
+    SetDeck(PlayerId,Deck),
 
     // Player stated actions
     SelfEndTurn,
@@ -103,8 +80,12 @@ impl Act for Action {
             Action::EndTurn(p) => {
                 game.board_lock().player_mut(p).draw_x_cards(1)
             }
-            Action::DrawCard(pid,amount) => {
+            Action::DrawCardAnon(pid,amount) => {
                 game.board_lock().player_mut(pid).draw_x_cards(amount)
+            }
+            Action::SetDeck(pid, deck) =>  {
+                //game.board_lock().player_mut(pid).set_deck(deck);
+                Ok(OkCode::Nothing)
             }
             _ => Err(Error::NotSupported)
         }
