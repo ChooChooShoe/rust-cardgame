@@ -16,8 +16,11 @@ pub struct Deck {
     valid: bool,
 }
 impl Deck {
-    pub fn cards(&self) -> &[Entry] {
-        &self.cards[..]
+    pub fn cards_for_zone(&self, zone: ZoneName) -> &[Entry] {
+        match zone {
+            ZoneName::Deck => &self.cards[..],
+            _ => &[],
+        }
     }
     pub fn name(&self) -> &str {
         &self.name
@@ -41,14 +44,17 @@ impl IntoMessage for Deck {
 
 #[derive(Debug,Clone,Deserialize,Serialize)]
 pub struct Entry {
-    pub zone: ZoneName,
-    pub card: CardId,
-    pub count: usize,
+    card: String,
+    count: usize,
 }
 impl Entry {
-    pub fn new(zone: ZoneName, card: CardId, count: usize) -> Entry {
-        Entry { zone, card, count }
+    pub fn new(card: &str, count: usize) -> Entry {
+        Entry { card: String::from(card), count }
     }
-    
-
+    pub fn card(&self) -> &str {
+        &self.card
+    }
+    pub fn count(&self) -> usize {
+        self.count
+    }
 }

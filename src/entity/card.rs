@@ -5,53 +5,69 @@ use std::fmt;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-pub type CardId = u64;
+pub type CardId = [char; 8];
 
 #[derive(Clone, Debug)]
 pub struct Card {
-    netid: u64,
-    data: CardData
+    uid: u64,
+    name: String,
+    text: String,
+    tags: HashMap<TagKey, TagVal>,
 }
 
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{} ({} tags)", self.name(), self.netid, self.tags().len())
+        write!(f, "{}:{} ({} tags)", self.name, self.uid, self.tags.len())
     }
 }
 
 impl Card {
-    pub fn new(netid: u64, name: &str) -> Card {
+    /// Creates a blank card with given id and name.
+    pub fn from_string(uid: u64, name: &str, text: &str) -> Card {
         Card {
-            netid,
-            data: CardData::new(name)
+            uid,
+            name: String::from(name),
+            text: String::from(text),
+            tags: HashMap::new(),
         }
     }
-    pub fn from_generic_id(pool: &CardPool, netid: u64, card_id: u64) -> Card {
+    /// Creates a known card using data from the cardpool. 
+    pub fn from_pool(uid: u64, data: &CardData) -> Card {
         Card {
-            netid,
-            data: pool.get_clone(card_id)
+            uid,
+            name: String::from(data.name()),
+            text: String::from(data.text()),
+            tags: data.clone_tags(),
         }
     }
 
     #[inline]
+    pub fn uid(&self) -> u64 {
+        self.uid
+    }
+    #[inline]
     pub fn name(&self) -> &str {
-        self.data.name()
+        &self.name
+    }
+    #[inline]
+    pub fn text(&self) -> &str {
+        &self.text
     }
     #[inline]
     pub fn tags(&self) -> &HashMap<TagKey,TagVal> {
-        self.data.tags()
+        &self.tags
     }
     #[inline]
     pub fn tags_mut(&mut self) -> &mut HashMap<TagKey,TagVal> {
-        self.data.tags_mut()
+        &mut self.tags
     }
     #[inline]
     pub fn insert_tag(&mut self, key: TagKey, val: TagVal) -> Option<TagVal> {
-        self.tags_mut().insert(key, val)
+        self.tags.insert(key, val)
     }
     #[inline]
     pub fn remove_tag(&mut self, key: &TagKey) -> Option<TagVal> {
-        self.tags_mut().remove(key)
+        self.tags.remove(key)
     }
 }
 
@@ -64,10 +80,11 @@ pub enum TagKey {
 }
 
 #[derive(PartialEq, Debug, Deserialize, Serialize, Clone)]
-#[serde(untagged)]
 /// Value that was set for a tag.
 /// One of i32, f32, or bool.
 pub enum TagVal {
+    None,
+    Default,
     Int(i32),
     Float(f32),
     Bool(bool),
@@ -111,6 +128,7 @@ impl TagVal {
             &TagVal::Float(x) => x == 1.0,
             &TagVal::Int(x) => x != 0,
             &TagVal::Pair(x, _) => x != 0,
+            _ => false
         }
     }
     pub fn as_i32(&self) -> i32 {
@@ -119,6 +137,7 @@ impl TagVal {
             &TagVal::Float(x) => x as i32,
             &TagVal::Int(x) => x,
             &TagVal::Pair(x, _) => x,
+            _ => 0
         }
     }
     pub fn as_f32(&self) -> f32 {
@@ -127,6 +146,7 @@ impl TagVal {
             &TagVal::Float(x) => x,
             &TagVal::Int(x) => x as f32,
             &TagVal::Pair(x, _) => x as f32,
+            _ => 0.0
         }
     }
 }

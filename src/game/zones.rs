@@ -5,11 +5,18 @@ use std::fmt;
 use std::cell::RefCell;
 
 const DEF_BANISHED_SIZE : usize = 0;
-const MAX_CARDS_IN_BATTLEFIELD : usize = 5;
+const DEF_BATTLEFIELD_SIZE : usize = 5;
 const DEF_DECK_SIZE : usize = 30;
 const DEF_LIMBO_SIZE : usize = 0;
 const DEF_GRAVEYARD_SIZE : usize = 0;
-const MAX_CARDS_IN_HAND : usize = 10;
+const DEF_HAND_SIZE : usize = 10;
+
+const MAX_BANISHED_SIZE : usize = 1000;
+const MAX_BATTLEFIELD_SIZE : usize = 25;
+const MAX_DECK_SIZE : usize = 1000;
+const MAX_LIMBO_SIZE : usize = 1000;
+const MAX_GRAVEYARD_SIZE : usize = 1000;
+const MAX_HAND_SIZE : usize = 10;
 
 #[derive(Debug,Clone,Deserialize,Serialize)]
 pub enum ZoneName {
@@ -19,18 +26,6 @@ pub enum ZoneName {
     Limbo,
     Graveyard,
     Hand,
-}
-impl ZoneName {
-    pub fn match_zone<'a>(&self, zones: &'a mut ZoneCollection) -> &'a mut Zone {
-        match self {
-            &ZoneName::Banished => &mut zones.banished,
-            &ZoneName::Battlefield => &mut zones.battlefield,
-            &ZoneName::Deck => &mut zones.deck,
-            &ZoneName::Limbo => &mut zones.limbo,
-            &ZoneName::Graveyard => &mut zones.graveyard,
-            &ZoneName::Hand => &mut zones.hand,
-        }
-    }
 }
 pub trait Zone
 {
@@ -116,12 +111,32 @@ impl ZoneCollection
     pub fn new(player : u64) -> ZoneCollection {
         ZoneCollection {
             player,
-            banished: Vec::new(),
-            battlefield: Vec::new(),
+            banished: Vec::with_capacity(DEF_BANISHED_SIZE),
+            battlefield: Vec::with_capacity(DEF_BATTLEFIELD_SIZE),
             deck: Vec::with_capacity(DEF_DECK_SIZE),
             limbo: Vec::with_capacity(DEF_LIMBO_SIZE),
             graveyard: Vec::with_capacity(DEF_GRAVEYARD_SIZE),
-            hand: Vec::new(),
+            hand: Vec::with_capacity(DEF_HAND_SIZE),
+        }
+    }
+    pub fn get_mut(&mut self, zone: ZoneName) -> &mut Zone {
+        match zone {
+            ZoneName::Banished => &mut self.banished,
+            ZoneName::Battlefield => &mut self.battlefield,
+            ZoneName::Deck => &mut self.deck,
+            ZoneName::Limbo => &mut self.limbo,
+            ZoneName::Graveyard => &mut self.graveyard,
+            ZoneName::Hand => &mut self.hand,
+        }
+    }
+    pub fn get(&self, zone: ZoneName) -> &Zone {
+        match zone {
+            ZoneName::Banished => &self.banished,
+            ZoneName::Battlefield => &self.battlefield,
+            ZoneName::Deck => &self.deck,
+            ZoneName::Limbo => &self.limbo,
+            ZoneName::Graveyard => &self.graveyard,
+            ZoneName::Hand => &self.hand,
         }
     }
 }

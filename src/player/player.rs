@@ -6,6 +6,7 @@ use net;
 use game::Deck;
 use entity::Card;
 use game::ZoneCollection;
+use game::zones::ZoneName;
 use player::controller::Controller;
 use game::zones::{Zone,Location};
 use entity::CardPool;
@@ -52,10 +53,11 @@ impl Player
 
     pub fn set_deck(&mut self, deck: Deck, pool: &CardPool, start_netid: u64) -> u64 {
         let mut id = start_netid;
-        for entry in deck.cards().iter() {
-            let z = entry.zone.match_zone(self.zones_mut());
-            for _ in 0..entry.count {
-                z.push(Card::from_generic_id(pool, id, entry.card));
+
+        for entry in deck.cards_for_zone(ZoneName::Deck) {
+            let zone = self.zones.get_mut(ZoneName::Deck);
+            for _ in 0..entry.count() {
+                zone.push(pool.make_card(id, entry.card()));
                 id += 1;
             }
         }

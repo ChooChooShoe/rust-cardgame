@@ -45,6 +45,8 @@ fn main() {
     log::set_max_level(SIMPLE_LOGGER.level.to_level_filter());
     
     info!("Card Game Engine");
+    //info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
+    //info!("Val: {}", std::mem::size_of::<entity::card::TagVal>());
 
 
     CardPool::gen_cards_to_disk();
