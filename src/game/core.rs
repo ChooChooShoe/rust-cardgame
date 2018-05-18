@@ -62,7 +62,9 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
             Err(RecvTimeoutError::Disconnected) => { warn!("Could not connect: Channel dropped"); return }
         }
     }
-    
+    main_loop(recv, connections, mode, game)
+}
+fn main_loop(recv: Receiver<Event>, connections: VecMap<WsSender>, mode: NetworkMode, game: Game) {
     info!("Game Started");
 
     let mut active_player = 0;
