@@ -1,4 +1,5 @@
-use entity::card::{Card, TagKey, TagVal};
+use entity::card::{Card};
+use entity::{TagKey,TagVal};
 use serde_json;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -73,7 +74,7 @@ impl CardPool {
         for i in 0..20 {
             let mut tags = HashMap::new();
             tags.insert(TagKey::Health, TagVal::from(9 + i));
-            tags.insert(TagKey::Attack, TagVal::Default);
+            tags.insert(TagKey::Attack, TagVal::from(4 + i));
             tags.insert(TagKey::Cost, TagVal::from(3.5 * (i as f32)));
             tags.insert(TagKey::Damage, TagVal::None);
             pool.all_cards.insert(

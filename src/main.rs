@@ -30,7 +30,7 @@ mod vecmap;
 
 use player::Controller;
 use log::{Level,Metadata,Record};
-use entity::card::{TagKey,TagVal,Card};
+use entity::card::{Card};
 use entity::CardPool;
 use player::Player;
 use std::collections::HashMap;
@@ -45,8 +45,11 @@ fn main() {
     log::set_max_level(SIMPLE_LOGGER.level.to_level_filter());
     
     info!("Card Game Engine");
-    //info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
-    //info!("Val: {}", std::mem::size_of::<entity::card::TagVal>());
+    info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
+    info!("Val: {}", std::mem::size_of::<entity::TagVal>());
+    info!("Val: {}", std::mem::size_of::<Option<entity::TagVal>>());
+    info!("Val: {}", std::mem::size_of::<u64>());
+    info!("Number: {}", std::mem::size_of::<serde_json::Number>());
 
 
     CardPool::gen_cards_to_disk();
@@ -69,9 +72,9 @@ fn main() {
     let game = ::game::Game::new(board,pool);
 
     if client {
-        net::client::connect("ws://127.0.0.1:3012", game);
+        //net::client::connect("ws://127.0.0.1:3012", game);
     } else {
-        net::server::listen("127.0.0.1:3012", game);
+        //net::server::listen("127.0.0.1:3012", game);
     }
     info!("Program exit.");
 }

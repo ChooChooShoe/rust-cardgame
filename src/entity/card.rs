@@ -1,5 +1,6 @@
-use entity::cardpool::CardPool;
 use entity::cardpool::CardData;
+use entity::cardpool::CardPool;
+use entity::{TagKey,TagVal};
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -31,7 +32,7 @@ impl Card {
             tags: HashMap::new(),
         }
     }
-    /// Creates a known card using data from the cardpool. 
+    /// Creates a known card using data from the cardpool.
     pub fn from_pool(uid: u64, data: &CardData) -> Card {
         Card {
             uid,
@@ -54,11 +55,11 @@ impl Card {
         &self.text
     }
     #[inline]
-    pub fn tags(&self) -> &HashMap<TagKey,TagVal> {
+    pub fn unsafe_tags(&self) -> &HashMap<TagKey, TagVal> {
         &self.tags
     }
     #[inline]
-    pub fn tags_mut(&mut self) -> &mut HashMap<TagKey,TagVal> {
+    pub fn unsafe_tags_mut(&mut self) -> &mut HashMap<TagKey, TagVal> {
         &mut self.tags
     }
     #[inline]
@@ -69,84 +70,24 @@ impl Card {
     pub fn remove_tag(&mut self, key: &TagKey) -> Option<TagVal> {
         self.tags.remove(key)
     }
-}
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize, Clone)]
-pub enum TagKey {
-    Cost,
-    Attack,
-    Health,
-    Damage,
-}
-
-#[derive(PartialEq, Debug, Deserialize, Serialize, Clone)]
-/// Value that was set for a tag.
-/// One of i32, f32, or bool.
-pub enum TagVal {
-    None,
-    Default,
-    Int(i32),
-    Float(f32),
-    Bool(bool),
-    Pair(i32, u16),
-}
-
-impl From<i32> for TagVal {
-    fn from(num: i32) -> Self {
-        TagVal::Int(num)
-    }
-}
-impl From<f32> for TagVal {
-    fn from(num: f32) -> Self {
-        TagVal::Float(num)
-    }
-}
-impl From<bool> for TagVal {
-    fn from(b: bool) -> Self {
-        TagVal::Bool(b)
-    }
-}
-impl Into<i32> for TagVal {
-    fn into(self) -> i32 {
-        self.as_i32()
-    }
-}
-impl Into<f32> for TagVal {
-    fn into(self) -> f32 {
-        self.as_f32()
-    }
-}
-impl Into<bool> for TagVal {
-    fn into(self) -> bool {
-        self.as_bool()
-    }
-}
-impl TagVal {
-    pub fn as_bool(&self) -> bool {
-        match self {
-            &TagVal::Bool(x) => x,
-            &TagVal::Float(x) => x == 1.0,
-            &TagVal::Int(x) => x != 0,
-            &TagVal::Pair(x, _) => x != 0,
-            _ => false
+    pub fn get_tag(&self, key: &TagKey) -> &TagVal {
+        match self.tags.get(key) {
+            Some(x) => x,
+            None => &TagVal::None,
         }
     }
-    pub fn as_i32(&self) -> i32 {
-        match self {
-            &TagVal::Bool(x) => x as i32,
-            &TagVal::Float(x) => x as i32,
-            &TagVal::Int(x) => x,
-            &TagVal::Pair(x, _) => x,
-            _ => 0
+    pub fn set_tag(&mut self, key: TagKey, val: TagVal) -> TagVal {
+        match self.tags.insert(key, val) {
+            Some(x) => x,
+            None => TagVal::None,
         }
     }
-    pub fn as_f32(&self) -> f32 {
-        match self {
-            &TagVal::Bool(x) => if x { 1.0 } else { 0.0 },
-            &TagVal::Float(x) => x,
-            &TagVal::Int(x) => x as f32,
-            &TagVal::Pair(x, _) => x as f32,
-            _ => 0.0
-        }
+
+    pub fn cost(&self) -> i32 {
+        self.get_tag(&TagKey::Cost).as_i32()
+    }
+    pub fn set_cost(&mut self, v: i32) -> i32 {
+        self.set_tag(TagKey::Cost, TagVal::from(v)).as_i32()
     }
 }

@@ -2,7 +2,9 @@ pub mod hero;
 pub mod card;
 pub mod weapon;
 pub mod cardpool;
+pub mod tags;
 
+pub use self::tags::{TagKey,TagVal};
 pub use self::card::Card;
 pub use self::cardpool::CardPool;
 pub use self::cardpool::CardData;
