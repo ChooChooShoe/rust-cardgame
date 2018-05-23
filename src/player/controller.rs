@@ -1,31 +1,37 @@
 use game::Zone;
 use player::Player;
 use std::io;
-use net::Networked;
+use ws::Sender as WsSender;
 
-pub enum Controller
+pub struct Controller
 {
-    CmdLinePlayer(usize),
-    AiPlayer(u64),
+    player_index: usize,
+    ws_sender: WsSender,
+
 }
 
-impl Networked for Controller
-{
-    fn netid(&self) -> u64 {
-        match self {
-            &Controller::CmdLinePlayer(netid) => netid as u64,
-            &Controller::AiPlayer(netid) => netid as u64,
-        }
-    }
-}
+//impl Networked for Controller
+//{
+//    fn netid(&self) -> u64 {
+//        match self {
+//            &Controller::CmdLinePlayer(netid) => netid as u64,
+//            &Controller::AiPlayer(netid) => netid as u64,
+//        }
+//    }
+//}
 
 impl Controller
 {
-    pub fn new(pidx: usize) -> Controller
+    pub fn new(pidx: usize, send: WsSender) -> Controller
     {
-        Controller::CmdLinePlayer(pidx)
+        Controller {
+            player_index: pidx,
+            ws_sender: send,
+        }
     }
-    
+    pub fn index(&self) -> usize {
+        return self.player_index
+    }
     pub fn on_game_start() -> Result<(),()>
     {
         Ok(())
@@ -49,7 +55,7 @@ impl Controller
     }
     pub fn do_turn(&mut self, player: &mut Player, turn_count: usize) -> Option<u64>
     {
-        info!("Player #{} turn {} start.", self.netid(), turn_count);
+        info!("Player #{} turn {} start.", self.player_index, turn_count);
         
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {

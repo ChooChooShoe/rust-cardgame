@@ -24,7 +24,7 @@ pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
     let factory = ServerFactory {
         sender: send,
         game,
-        last_pid: 0u8,
+        next_player_id: 0,
     };
     let ws = Builder::new().with_settings(settings).build(factory).unwrap();
 
@@ -35,18 +35,19 @@ pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
 struct ServerFactory {
     sender: TSender<Event>,
     game: Game,
-    last_pid: u8,
+    next_player_id: usize,
 }
 impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        self.last_pid += 1;
-        ServerHandle {
+        let ret = ServerHandle {
             ws_out: out,
             thread_out: self.sender.clone(),
-            pid: self.last_pid,
-        }
+            pid: self.next_player_id,
+        };
+        self.next_player_id += 1;
+        ret
     }
     fn connection_lost(&mut self, _: ServerHandle) {
         warn!("Connection lost.");
@@ -57,10 +58,10 @@ impl Factory for ServerFactory {
 pub struct ServerHandle{
     ws_out: WsSender,
     thread_out: TSender<Event>,
-    pid: u8,
+    pid: usize,
 }
 
-fn thread_err<E: ::std::error::Error>(e: E, pid: u8) -> Error {
+fn thread_err<E: ::std::error::Error>(e: E, pid: usize) -> Error {
     Error::new(ErrorKind::Internal,
         format!("Unable to communicate between threads for pid {} : {:?}.", pid, e))
 }
@@ -72,14 +73,14 @@ impl Handler for ServerHandle {
     }
 
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
-        let event = Event::Connect(self.ws_out.clone(), self.pid);
+        let event = Event::Connect(::player::Controller::new(self.pid as usize, self.ws_out.clone()));
         self.thread_out.send(event).map_err(|e| thread_err(e,self.pid))
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         info!("Connection closing due to ({:?}) {}", code, reason);
 
-        if let Err(err) = self.thread_out.send(Event::Disconnect(code, self.pid)) {
+        if let Err(err) = self.thread_out.send(Event::Disconnect(code, self.pid as usize)) {
             error!("Error on conection close (pid:{}): {:?}", self.pid, err)
         }
     }

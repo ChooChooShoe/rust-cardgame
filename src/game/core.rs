@@ -21,38 +21,35 @@ use vecmap::VecMap;
 
 // Message from clients to game loop.
 pub enum Event {
-    Connect(WsSender, u8),
+    Connect(Controller),
     /// When we as a server got a Action from thte client.
-    OnClientAction(ClientAction, u8),
-    TakeAction(Action, u8),
-    Disconnect(CloseCode, u8),
-    WsError(WsError, u8),
+    OnClientAction(ClientAction, usize),
+    TakeAction(Action, usize),
+    Disconnect(CloseCode, usize),
+    WsError(WsError, usize),
 }
 
-pub enum Connection {
-
-}
 pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     let game_start_time = Instant::now();
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
    
     info!("Waiting for connections");
-    let mut connections = VecMap::new();
+    let mut connections = Vec::new();
 
     loop {
         // try every 500ms to get a connection. break when we can start game.
         match recv.recv_timeout(Duration::from_millis(500)) {
-            Ok(Event::Connect(send,pid)) => {
+            Ok(Event::Connect(connection)) => {
                 info!("Core got connection");
                 
                 match mode {
                     NetworkMode::Client => { // client makes one coonection to host/server
-                        assert_eq!(pid,0); //host is always pid 0
-                        connections.push(send);
+                        //not true anymore assert_eq!(pid,0); //host is always pid 0
+                        connections.push(connection);
                         break
                     }
                     NetworkMode::Server => {
-                        connections.insert(pid as usize, send);
+                        connections.push(connection);
                     }
                     _ => {}
                 }
@@ -62,9 +59,11 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
             Err(RecvTimeoutError::Disconnected) => { warn!("Could not connect: Channel dropped"); return }
         }
     }
-    main_loop(recv, connections, mode, game)
+    connections.sort_by(|a, b| a.index().cmp(&b.index()));
+    main_loop(&recv, &mut connections[..], mode, game)
 }
-fn main_loop(recv: Receiver<Event>, connections: VecMap<WsSender>, mode: NetworkMode, game: Game) {
+
+fn main_loop(recv: &Receiver<Event>, controllers: &mut [Controller], mode: NetworkMode, game: Game) {
     info!("Game Started");
 
     let mut active_player = 0;
@@ -81,11 +80,11 @@ fn main_loop(recv: Receiver<Event>, connections: VecMap<WsSender>, mode: Network
             }
             Event::OnClientAction(action, pid) => {
                 info!("client action!: action = {:?}, pid = {}", action, pid);
-                let _con = connections.get(pid as usize).unwrap();
+                let _con = &controllers[pid];
 
             }
-            Event::Connect(sender, pid) => {
-                info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
+            Event::Connect(connection) => {
+                //info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
             }
             Event::Disconnect(code, pid) => {
                 if mode == NetworkMode::Client {
