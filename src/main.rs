@@ -39,6 +39,7 @@ use std::io;
 use std::io::ErrorKind;
 use std::fs::File;
 use std::env;
+use std::thread;
 
 fn main() {
     log::set_logger(&SIMPLE_LOGGER).unwrap();
@@ -74,7 +75,28 @@ fn main() {
     if client {
         //net::client::connect("ws://127.0.0.1:3012", game);
     } else {
-        //net::server::listen("127.0.0.1:3012", game);
+        let game1 = game.clone();
+        let game2 = game.clone();
+        let handels = (
+            thread::spawn(move || {
+                net::server::listen("127.0.0.1:3012", game2)
+            }),
+            thread::spawn(move || {
+                thread::park_timeout_ms(30);
+                net::client::connect("ws://127.0.0.1:3012", game1)
+            }),
+            thread::spawn(move || {
+                thread::park_timeout_ms(50);
+                net::client::connect("ws://127.0.0.1:3012", game)
+            }),
+        );
+        info!("Joining Thread 0 for Server");
+        handels.0.join().unwrap();
+        info!("Joining Thread 1 for Client A");
+        handels.1.join().unwrap();
+        info!("Joining Thread 2 for Client B");
+        handels.2.join().unwrap();
+        
     }
     info!("Program exit.");
 }

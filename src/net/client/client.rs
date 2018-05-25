@@ -18,7 +18,7 @@ use url;
 pub fn connect<U: Borrow<str>>(url: U, game: Game) {
     let (send,recv) = channel();
     let h_game = game.clone();
-    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Client, h_game));
+    //let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Client, h_game));
 
     ws::connect(url, |out: WsSender| {
         out.send(Action::DirectAttack(10,20).encode()).unwrap();
@@ -28,7 +28,7 @@ pub fn connect<U: Borrow<str>>(url: U, game: Game) {
     }).expect("Couldn't begin connection to remote server and/or create a local client");
 
     info!("Waiting for the game client thread to close.");
-    thread_handle.join().expect("Couldn't join on the game client thread");
+    //thread_handle.join().expect("Couldn't join on the game client thread");
 }
 //fn def() {
 //    let mut input = String::new();
@@ -74,14 +74,14 @@ impl Handler for Client {
     
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
         self.thread_out
-            .send(Event::Connect(Controller::new(self.player_index.unwrap(), self.ws_out.clone())))
+            .send(Event::Connect(Controller::new(self.player_index.unwrap_or_default(), self.ws_out.clone())))
             .map_err(thread_err)
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         info!("Connection closing due to ({:?}) {}", code, reason);
 
-        if let Err(err) = self.thread_out.send(Event::Disconnect(code, self.player_index.unwrap())) {
+        if let Err(err) = self.thread_out.send(Event::Disconnect(code, self.player_index.unwrap_or_default())) {
             error!("Error: Thread channel dropped on conection close: {:?}", err)
         }
     }
@@ -90,13 +90,13 @@ impl Handler for Client {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let action = Action::decode(msg);
         info!("Received action {:?}", action);
-        self.thread_out.send(Event::TakeAction(action, self.player_index.unwrap())).map_err(|e| Error::new(
+        self.thread_out.send(Event::TakeAction(action, self.player_index.unwrap_or_default())).map_err(|e| Error::new(
             ErrorKind::Internal, format!("Thread channel dropped wehn sending action: {:?}", e)
         ))
     }
     #[inline]
     fn on_request(&mut self, req: &Request) -> Result<Response> {
-        info!("Client received request??");
+        info!("Client received request. This should not happen!");
         Response::from_request(req)
     }
     #[inline]
@@ -104,19 +104,19 @@ impl Handler for Client {
         info!("Client received response.");
         // res.header() is private? why?
         let s = "rust-cardgame-playerid".to_lowercase();
-        if let Some(playerid) = res.headers().iter().find(|&&(ref key, _)| key.to_lowercase() == s){
-            match String::from_utf8(playerid.1.clone()){
-                Ok(x) =>
-                if let Ok(i) = s.parse::<u8>() {
-                    info!("Server never gave us pid {}.", i);
-                    self.player_index = Some(i as usize);
-                    Ok(())
-                } else {
-                    Err(Error::new(ErrorKind::Capacity, "Server never gave us a invalid pid."))
+        if let Some(header_entry) = res.headers().iter().find(|&&(ref key, _)| key.to_lowercase() == s){
+            match String::from_utf8(header_entry.1.clone()) {
+                Ok(pid_string) =>
+                    if let Ok(pid) = pid_string.parse::<usize>() {
+                        info!("Client is now player id {}.", pid);
+                        self.player_index = Some(pid);
+                        Ok(())
+                    } else {
+                        Err(Error::new(ErrorKind::Capacity, format!("Server gave us a non-number player id '{}'.", pid_string)))
+                    }
+                Err(x) => {
+                    Err(Error::new(ErrorKind::Encoding(x.utf8_error()), "Server gave us an invalid UTF-8 string for player id."))
                 }
-              Err(x) => {
-                Err(Error::new(ErrorKind::Encoding(x.utf8_error()), "Server never gave us a bad string for pid."))
-              }
             }
         } else {
             Err(Error::new(ErrorKind::Protocol, "Server never gave us a player id."))
@@ -140,7 +140,7 @@ impl Handler for Client {
             }
         }
         error!("Client Error: {:?}", err);
-        if self.thread_out.send(Event::WsError(err, self.player_index.unwrap())).is_err() {
+        if self.thread_out.send(Event::WsError(err, self.player_index.unwrap_or_default())).is_err() {
             warn!("Thread channel dropped on ws error")
         }
     }

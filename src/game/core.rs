@@ -30,6 +30,8 @@ pub enum Event {
 }
 
 pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
+    assert_eq!(mode, NetworkMode::Server);
+
     let game_start_time = Instant::now();
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
    
@@ -37,29 +39,28 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     let mut connections = Vec::new();
 
     loop {
-        // try every 500ms to get a connection. break when we can start game.
+        // Wait up to 500ms to get the first connection.
         match recv.recv_timeout(Duration::from_millis(500)) {
-            Ok(Event::Connect(connection)) => {
+            Ok(Event::Connect(controller)) => {
                 info!("Core got connection");
                 
                 match mode {
-                    NetworkMode::Client => { // client makes one coonection to host/server
-                        //not true anymore assert_eq!(pid,0); //host is always pid 0
-                        connections.push(connection);
-                        break
-                    }
                     NetworkMode::Server => {
-                        connections.push(connection);
+                        connections.push(controller);
+
+                        if connections.len() == 2 {
+                            break;
+                        }
                     }
-                    _ => {}
+                    _ => {unreachable!()}
                 }
             }
-            Ok(_) => unreachable!(),
-            Err(RecvTimeoutError::Timeout) => { warn!("Could not connect: Channel timeout"); return }
-            Err(RecvTimeoutError::Disconnected) => { warn!("Could not connect: Channel dropped"); return }
+            Ok(_) => {warn!("No players have connected yet! Event can not be handled.")},
+            Err(RecvTimeoutError::Timeout) => { warn!("No contollers connected before timeout."); return }
+            Err(RecvTimeoutError::Disconnected) => { warn!("No controllers connected before channel dropped."); return }
         }
     }
-    connections.sort_by(|a, b| a.index().cmp(&b.index()));
+    //connections.sort_by(|a, b| a.index().cmp(&b.index()));
     main_loop(&recv, &mut connections[..], mode, game)
 }
 

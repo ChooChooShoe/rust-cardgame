@@ -131,7 +131,7 @@ impl Handler for ServerHandle {
     /// ```
     #[inline]
     fn on_request(&mut self, req: &Request) -> Result<Response> {
-        info!("Server received request.\n----\n{:?}\n----\n", req);
+        info!("Server received request.");
         let mut res = try!(Response::from_request(req));
         if try!(req.protocols()).iter().find(|&&proto| proto.contains("player.rust-cardgame")).is_some() {
             res.set_protocol("player.rust-cardgame");
@@ -140,7 +140,6 @@ impl Handler for ServerHandle {
             if let Some(header) = req.headers().iter().find(|ref header| header.0.contains("Rust-Cardgame-Version")) {
                 match &header.1[..] {
                     b"100" => {
-                        info!("sending: {:?}", res);
                         Ok(res)
                     },
                     _ => Err(Error::new(ErrorKind::Protocol, format!("Version Missmatch: Expected 1.0.0 got {:?}", header.1)))
@@ -162,7 +161,7 @@ impl Handler for ServerHandle {
     /// has agreed to if any.
     #[inline]
     fn on_response(&mut self, res: &Response) -> Result<()> {
-        info!("ServerHandle received response??");
+        info!("ServerHandle received response. This should not happen!");
         Ok(())
     }
 
