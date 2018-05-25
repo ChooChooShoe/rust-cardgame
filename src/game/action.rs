@@ -59,8 +59,8 @@ pub enum Action {
     Invalid,
     Error,
     Ok,
-    DrawCardKnown(u8,usize),
-    DrawCardAnon(u8,usize),
+    DrawCardKnown(usize,usize),
+    DrawCardAnon(usize,usize),
     SetDeck(PlayerId,Deck),
 
     // Player stated actions
@@ -70,7 +70,7 @@ pub enum Action {
     DeclareAttack(u64,u64),
 
     // Player responses
-    EndTurn(u8),
+    EndTurn(usize),
 
 }
 

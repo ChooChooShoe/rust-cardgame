@@ -11,7 +11,7 @@ use game::core::{self,Event};
 use game::Action;
 use net::NetworkMode;
 use game::Game;
-use player::Controller;
+use player::controller::WsNetController;
 use std::error::Error as StdError;
 use url;
 
@@ -73,9 +73,10 @@ impl Handler for Client {
     }
     
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
-        self.thread_out
-            .send(Event::Connect(Controller::new(self.player_index.unwrap_or_default(), self.ws_out.clone())))
-            .map_err(thread_err)
+        let controller = WsNetController::new(self.player_index.unwrap_or_default(), self.ws_out.clone());
+        let ev = Event::Connect(Box::new(controller));
+        
+        self.thread_out.send(ev).map_err(thread_err)
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {

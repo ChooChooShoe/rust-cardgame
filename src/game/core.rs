@@ -21,7 +21,7 @@ use vecmap::VecMap;
 
 // Message from clients to game loop.
 pub enum Event {
-    Connect(Controller),
+    Connect(Box<Controller>),
     /// When we as a server got a Action from thte client.
     OnClientAction(ClientAction, usize),
     TakeAction(Action, usize),
@@ -36,7 +36,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
    
     info!("Waiting for connections");
-    let mut connections = Vec::new();
+    let mut controllers = Vec::new();
 
     loop {
         // Wait up to 500ms to get the first connection.
@@ -46,9 +46,9 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                 
                 match mode {
                     NetworkMode::Server => {
-                        connections.push(controller);
+                        controllers.push(controller);
 
-                        if connections.len() == 2 {
+                        if controllers.len() == 2 {
                             break;
                         }
                     }
@@ -61,11 +61,22 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
         }
     }
     //connections.sort_by(|a, b| a.index().cmp(&b.index()));
-    main_loop(&recv, &mut connections[..], mode, game)
-}
-
-fn main_loop(recv: &Receiver<Event>, controllers: &mut [Controller], mode: NetworkMode, game: Game) {
+    
     info!("Game Started");
+
+    {
+        let mut b = game.board_lock();
+        b.shuffle_decks();
+    }
+
+
+    for c in &controllers {
+        c.on_muligin_start().unwrap();
+    }
+    for c in &controllers {
+        c.on_muligin_end().unwrap();
+    }
+
 
     let mut active_player = 0;
     let mut turn_count = 0;
@@ -135,7 +146,7 @@ fn main_loop(recv: &Receiver<Event>, controllers: &mut [Controller], mode: Netwo
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     GameStart,
-    PlayerTurn(u8,u32),
+    PlayerTurn(usize,u32),
     EndGame,
 }
 

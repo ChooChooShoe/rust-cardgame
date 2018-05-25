@@ -73,7 +73,7 @@ impl Handler for ServerHandle {
     }
 
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
-        let event = Event::Connect(::player::Controller::new(self.pid as usize, self.ws_out.clone()));
+        let event = Event::Connect(Box::new(::player::controller::WsNetController::new(self.pid as usize, self.ws_out.clone())));
         self.thread_out.send(event).map_err(|e| thread_err(e,self.pid))
     }
 

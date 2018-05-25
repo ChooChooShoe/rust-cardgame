@@ -57,7 +57,7 @@ impl Player
         for entry in deck.cards_for_zone(ZoneName::Deck) {
             let zone = self.zones.get_mut(ZoneName::Deck);
             for _ in 0..entry.count() {
-                zone.push(pool.make_card(id, entry.card()));
+                zone.insert_at(pool.make_card(id, entry.card()), Location::Default);
                 id += 1;
             }
         }
@@ -67,7 +67,7 @@ impl Player
     
     pub fn draw_x_cards(&mut self, x: usize) -> ActionResult
     {
-        let drawn_cards = self.zones.deck.take_x_cards(x, Location::Top);
+        let drawn_cards = self.zones.deck.remove_x_at(x, Location::Top);
 
         let mut cards_to_add = Vec::with_capacity(x);
         //TODO on card drawn event
@@ -81,7 +81,7 @@ impl Player
                     {info!("on_card_drawn: deck -> hand : NONE");},
             }
         }
-        self.zones.hand.add_cards(cards_to_add,Location::Top);
+        self.zones.hand.insert_all_at(cards_to_add, Location::Top);
         Ok(OkCode::Nothing)
     }
 }

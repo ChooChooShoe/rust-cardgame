@@ -1,52 +1,64 @@
-use std::collections::HashMap;
 use entity::Card;
-use player::Controller;
 use game::ZoneCollection;
+use player::Controller;
+use std::collections::HashMap;
 //use tags::*;
-use rand::{thread_rng, Rng};
-use player::Player;
-use serde::{Serialize,Deserialize};
 use game::Zone;
 use net::Networked;
+use player::Player;
+use rand::{thread_rng, Rng};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
-pub struct GameBoard
-{
-    pub uid: u64,
-    pub player1: Player,
-    pub player2: Player,
+pub struct GameBoard {
+    pub players: Vec<Player>,
     active_player_pidx: usize,
 }
 
-impl GameBoard
-{
-    pub fn new(uid: u64, player1: Player, player2: Player) -> GameBoard
-    {
+impl GameBoard {
+    pub fn new(uid: u64, player1: Player, player2: Player) -> GameBoard {
         GameBoard {
-            uid,
-            player1,
-            player2,
+            players: vec![player1, player2],
             active_player_pidx: 0,
         }
     }
-    pub fn player_count(&self) -> u8 {2}
-
-    pub fn player(&self, idx: u8) -> &Player {
-        match idx {
-            1 => &self.player1,
-            _ => &self.player2,
-        }
+    pub fn player_count(&self) -> usize {
+        self.players.len()
+    }
+    
+    pub fn players(&self) -> &[Player] {
+        &self.players[..]
     }
 
-    pub fn player_mut(&mut self, idx: u8) -> &mut Player {
-        match idx {
-            1 => &mut self.player1,
-            _ => &mut self.player2,
-        }
+    pub fn players_mut(&mut self) -> &mut [Player] {
+        &mut self.players[..]
     }
 
-    pub fn shuffle_decks(&mut self)
-    {
+    pub fn player(&self, index: usize) -> &Player {
+        &self.players[index]
+    }
+
+    pub fn player_mut(&mut self, index: usize) -> &mut Player {
+        &mut self.players[index]
+    }
+
+    pub fn set_active_player(&mut self, pidx: usize) {
+        self.active_player_pidx = pidx
+    }
+
+    pub fn active_player_index(&self) -> usize {
+        self.active_player_pidx
+    }
+
+    pub fn active_player(&self) -> &Player {
+        &self.players[self.active_player_pidx]
+    }
+
+    pub fn active_player_mut(&mut self) -> &mut Player {
+        &mut self.players[self.active_player_pidx]
+    }
+
+    pub fn shuffle_decks(&mut self) {
         //let mut rng = thread_rng();
 
         //let mut a = self.p1_zones.deck.as_mut_slice();
@@ -56,25 +68,8 @@ impl GameBoard
         //rng.shuffle(&mut b);
     }
 
-    pub fn run_mulligan(&mut self)
-    {
-        self.player1.draw_x_cards(5).unwrap();
-        self.player2.draw_x_cards(5).unwrap();
+    pub fn run_mulligan(&mut self) {
+        self.player_mut(0).draw_x_cards(5).unwrap();
+        self.player_mut(1).draw_x_cards(5).unwrap();
     }
-
-    pub fn set_active_player(&mut self, pidx: usize)
-    {
-        self.active_player_pidx = pidx
-    }
-    pub fn active_player(&mut self) -> usize
-    {
-        self.active_player_pidx
-    }
-    pub fn active_player_mut(&mut self) -> &mut Player{
-        match self.active_player_pidx {
-            1 => &mut self.player1,
-            _ => &mut self.player2,
-        }
-    }
-
 }

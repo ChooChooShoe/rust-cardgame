@@ -5,4 +5,4 @@ pub mod player;
 pub use self::controller::Controller;
 pub use self::player::Player;
 
-pub type PlayerId = u8;
+pub type PlayerId = usize;
