@@ -78,10 +78,12 @@ impl Act for Action {
     fn perform(self, game: &Game) -> Result {
         match self {
             Action::EndTurn(p) => {
-                game.board_lock().player_mut(p).draw_x_cards(1)
+                game.board_lock().player_mut(p).draw_x_cards(1);
+                Ok(OkCode::Nothing)
             }
             Action::DrawCardAnon(pid,amount) => {
-                game.board_lock().player_mut(pid).draw_x_cards(amount)
+                game.board_lock().player_mut(pid).draw_x_cards(amount);
+                Ok(OkCode::Nothing)
             }
             Action::SetDeck(pid, deck) =>  {
                 //game.board_lock().player_mut(pid).set_deck(deck);
@@ -138,8 +140,4 @@ impl Action {
 mod tests {
     use super::*;
 
-    #[test]
-    fn to_vec_and_back() {
-        assert_eq!(Action::DrawCard(500), Action::decode(Action::DrawCard(500).encode()));
-    }
 }

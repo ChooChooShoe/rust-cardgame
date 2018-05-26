@@ -19,7 +19,7 @@ const MAX_LIMBO_SIZE: usize = 1000;
 const MAX_GRAVEYARD_SIZE: usize = 1000;
 const MAX_HAND_SIZE: usize = 10;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone,Copy,Debug,Serialize,Deserialize)]
 pub enum ZoneName {
     Banished,
     Battlefield,
@@ -30,8 +30,8 @@ pub enum ZoneName {
 }
 pub trait Zone<T> {
     // Inserts value at this location
-    fn insert_at(&mut self, element: T, location: Location);
-    fn insert_all_at(&mut self, element: Vec<T>, location: Location);
+    fn insert_at(&mut self, location: Location, element: T);
+    fn insert_all_at(&mut self, location: Location, element: Vec<T>);
     // Removes value at this location and return it.
     fn remove_at(&mut self, location: Location) -> Option<T>;
     fn remove_x_at(&mut self, count: usize, location: Location) -> Vec<Option<T>>;
@@ -50,7 +50,7 @@ pub enum Location {
     Index(usize),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct ZoneCollection {
     pub player: u64,
     pub banished: Vec<Card>,
@@ -63,7 +63,7 @@ pub struct ZoneCollection {
 
 impl Zone<Card> for Vec<Card> {
     // Inserts value at this location
-    fn insert_at(&mut self, element: Card, location: Location) {
+    fn insert_at(&mut self, location: Location, element: Card) {
         match location {
             Location::Default => self.push(element),
             Location::Top => self.push(element),
@@ -101,9 +101,9 @@ impl Zone<Card> for Vec<Card> {
     }
 
 
-    fn insert_all_at(&mut self,  cards: Vec<Card>, location: Location) {
+    fn insert_all_at(&mut self, location: Location, cards: Vec<Card>) {
         for card in cards {
-            self.insert_at(card, location)
+            self.insert_at(location,card)
         }
     }
 

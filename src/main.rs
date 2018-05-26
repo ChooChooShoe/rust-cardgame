@@ -82,11 +82,11 @@ fn main() {
                 net::server::listen("127.0.0.1:3012", game2)
             }),
             thread::spawn(move || {
-                thread::park_timeout_ms(30);
+                thread::park_timeout(Duration::from_millis(10));
                 net::client::connect("ws://127.0.0.1:3012", game1)
             }),
             thread::spawn(move || {
-                thread::park_timeout_ms(50);
+                thread::park_timeout(Duration::from_millis(30));
                 net::client::connect("ws://127.0.0.1:3012", game)
             }),
         );

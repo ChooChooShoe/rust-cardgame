@@ -39,7 +39,7 @@ impl WsNetController {
             0 => println!("No command entered"),
             1 => match args[0] {
                 "draw" => {
-                    player.draw_x_cards(1).unwrap();
+                    player.draw_x_cards(1);
                 }
                 _ => println!("Unknown command: {:?}", args),
             },

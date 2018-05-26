@@ -1,48 +1,52 @@
+use net;
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::io;
-use serde::{Serialize,Deserialize};
-use net;
 
-use game::Deck;
 use entity::Card;
+use entity::CardPool;
+use game::Deck;
 use game::ZoneCollection;
 use game::zones::ZoneName;
+use game::zones::{Location, Zone};
+use game::{ActionError, ActionResult, OkCode};
 use player::controller::Controller;
-use game::zones::{Zone,Location};
-use entity::CardPool;
-use game::{ActionError,OkCode,ActionResult};
 
 // This is the players reprsentation in the game.
 // Player owns the cards and the moves.
 #[derive(Clone)]
-pub struct Player
-{
+pub struct Player {
     pub pidx: usize,
     pub name: String,
     pub deck: Option<Deck>,
     pub zones: ZoneCollection,
 }
 
-impl net::Networked for Player
-{
-    fn netid(&self) -> u64 { 0x100 + self.pidx as u64 }
+impl net::Networked for Player {
+    fn netid(&self) -> u64 {
+        0x100 + self.pidx as u64
+    }
 }
 
-impl Player
-{
+impl Player {
     pub fn new(pidx: usize, name: String) -> Player {
-        Player { pidx, name, deck: None, zones: ZoneCollection::new(42) }
+        Player {
+            pidx,
+            name,
+            deck: None,
+            zones: ZoneCollection::new(42),
+        }
     }
 
-    pub fn name(&self) -> &str { self.name.as_str() }
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
 
-    pub fn do_turn(&mut self, turn_count: usize) -> Option<u64>
-    {
+    pub fn do_turn(&mut self, turn_count: usize) -> Option<u64> {
         info!("Player '{}' turn {} start.", self.name, turn_count);
         //self.pc.handle_user_input(self);
         None
     }
-
 
     pub fn zones(&self) -> &ZoneCollection {
         &self.zones
@@ -57,31 +61,31 @@ impl Player
         for entry in deck.cards_for_zone(ZoneName::Deck) {
             let zone = self.zones.get_mut(ZoneName::Deck);
             for _ in 0..entry.count() {
-                zone.insert_at(pool.make_card(id, entry.card()), Location::Default);
+                zone.insert_at(Location::Default, pool.make_card(id, entry.card()));
                 id += 1;
             }
         }
         self.deck = Some(deck);
         id
     }
-    
-    pub fn draw_x_cards(&mut self, x: usize) -> ActionResult
-    {
+
+    pub fn draw_x_cards(&mut self, x: usize) {
+        if x == 0 { return }
+
         let drawn_cards = self.zones.deck.remove_x_at(x, Location::Top);
 
-        let mut cards_to_add = Vec::with_capacity(x);
         //TODO on card drawn event
-        for c in drawn_cards{
-            match c{
+        for c in drawn_cards {
+            match c {
                 Some(card) => {
-                    info!("on_card_drawn: deck -> hand : {:?}", card.name());
-                    cards_to_add.push(card);
-                },
-                None => 
-                    {info!("on_card_drawn: deck -> hand : NONE");},
+                    info!("on_card_drawn  event: deck -> hand : {:?}", card.name());
+                    self.zones.hand.insert_at(Location::Top, card);
+                    info!("after_card_drawn event:");
+                }
+                None => {
+                    info!("on_card_draw_fail event: deck -> hand : NONE");
+                }
             }
         }
-        self.zones.hand.insert_all_at(cards_to_add, Location::Top);
-        Ok(OkCode::Nothing)
     }
 }

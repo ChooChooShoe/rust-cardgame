@@ -16,7 +16,7 @@ pub struct GameBoard {
 }
 
 impl GameBoard {
-    pub fn new(uid: u64, player1: Player, player2: Player) -> GameBoard {
+    pub fn new(_uid: u64, player1: Player, player2: Player) -> GameBoard {
         GameBoard {
             players: vec![player1, player2],
             active_player_pidx: 0,
@@ -69,7 +69,7 @@ impl GameBoard {
     }
 
     pub fn run_mulligan(&mut self) {
-        self.player_mut(0).draw_x_cards(5).unwrap();
-        self.player_mut(1).draw_x_cards(5).unwrap();
+        self.player_mut(0).draw_x_cards(5);
+        self.player_mut(1).draw_x_cards(5);
     }
 }
