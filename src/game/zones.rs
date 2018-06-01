@@ -50,7 +50,7 @@ pub enum Location {
     Index(usize),
 }
 
-#[derive(Clone,Debug,Serialize,Deserialize)]
+#[derive(Clone,Debug)]
 pub struct ZoneCollection {
     pub player: u64,
     pub banished: Vec<Card>,

@@ -1,5 +1,4 @@
-use game::Zone;
-use player::Player;
+use game::{Zone,Player};
 use std::io;
 use ws::Sender as WsSender;
 

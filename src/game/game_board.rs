@@ -1,3 +1,5 @@
+use entity::trigger::Dispatch;
+use entity::trigger::Trigger;
 use entity::Card;
 use game::ZoneCollection;
 use player::Controller;
@@ -5,14 +7,14 @@ use std::collections::HashMap;
 //use tags::*;
 use game::Zone;
 use net::Networked;
-use player::Player;
+use game::Player;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
 pub struct GameBoard {
     pub players: Vec<Player>,
     active_player_pidx: usize,
+    trigger_callbacks: Vec<Box<Fn(&mut GameBoard, &mut Trigger) + Send>>,
 }
 
 impl GameBoard {
@@ -20,12 +22,13 @@ impl GameBoard {
         GameBoard {
             players: vec![player1, player2],
             active_player_pidx: 0,
+            trigger_callbacks: Vec::new(),
         }
     }
     pub fn player_count(&self) -> usize {
         self.players.len()
     }
-    
+
     pub fn players(&self) -> &[Player] {
         &self.players[..]
     }

@@ -1,4 +1,3 @@
-use player::PlayerId;
 use std::fmt;
 use std::result::Result as StdResult;
 use std::error::Error as StdError;

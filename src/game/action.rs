@@ -1,4 +1,3 @@
-use player::PlayerId;
 use std::fmt;
 use std::result::Result as StdResult;
 use std::error::Error as StdError;
@@ -61,7 +60,7 @@ pub enum Action {
     Ok,
     DrawCardKnown(usize,usize),
     DrawCardAnon(usize,usize),
-    SetDeck(PlayerId,Deck),
+    SetDeck(usize,Deck),
 
     // Player stated actions
     SelfEndTurn,

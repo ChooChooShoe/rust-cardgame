@@ -22,12 +22,6 @@ pub struct Player {
     pub zones: ZoneCollection,
 }
 
-impl net::Networked for Player {
-    fn netid(&self) -> u64 {
-        0x100 + self.pidx as u64
-    }
-}
-
 impl Player {
     pub fn new(pidx: usize, name: String) -> Player {
         Player {

@@ -1,4 +1,4 @@
-use player::player::Player;
+use game::Player;
 use net::IntoMessage;
 use game::zones::ZoneName;
 use entity::card::CardId;

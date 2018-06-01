@@ -32,7 +32,7 @@ use player::Controller;
 use log::{Level,Metadata,Record};
 use entity::card::{Card};
 use entity::CardPool;
-use player::Player;
+use game::Player;
 use std::collections::HashMap;
 use std::time::{Instant,Duration};
 use std::io;
