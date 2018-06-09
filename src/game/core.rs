@@ -28,6 +28,8 @@ pub enum Event {
     TakeAction(Action, usize),
     Disconnect(CloseCode, usize),
     WsError(WsError, usize),
+    OnShutdown(),
+    ConnectionLost(usize)
 }
 
 pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
@@ -105,6 +107,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                 Event::Connect(connection) => {
                     //info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
                 }
+                Event::ConnectionLost(_pid) => break,
                 Event::Disconnect(code, pid) => {
                     if mode == NetworkMode::Client {
                         info!("server lost: code = {:?}, pid = {}", code, pid);
@@ -112,7 +115,8 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                     }
                     info!("connection lost: code = {:?}, pid = {}", code, pid)
                 }
-                Event::WsError(err, pid) => break,
+                Event::WsError(_err, _pid) => break,
+                Event::OnShutdown() => return,
             }
         }
         for (count, trigger) in trigger_queue.iter_mut().enumerate() {

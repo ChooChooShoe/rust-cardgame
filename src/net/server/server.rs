@@ -49,8 +49,13 @@ impl Factory for ServerFactory {
         self.next_player_id += 1;
         ret
     }
-    fn connection_lost(&mut self, _: ServerHandle) {
-        warn!("Connection lost.");
+    fn connection_lost(&mut self, handle: ServerHandle) {
+        warn!("Connection lost for pid {}", handle.pid);
+        self.sender.send(Event::ConnectionLost(handle.pid)).unwrap();
+    }
+    fn on_shutdown(&mut self) {
+        debug!("ServerFactory received WebSocket shutdown request.");
+        self.sender.send(Event::OnShutdown()).unwrap();
     }
 }
 
