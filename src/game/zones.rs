@@ -19,7 +19,7 @@ const MAX_LIMBO_SIZE: usize = 1000;
 const MAX_GRAVEYARD_SIZE: usize = 1000;
 const MAX_HAND_SIZE: usize = 10;
 
-#[derive(Clone,Copy,Debug,Serialize,Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ZoneName {
     Banished,
     Battlefield,
@@ -30,14 +30,14 @@ pub enum ZoneName {
 }
 pub trait Zone<T> {
     // Inserts value at this location
-    fn insert_at(&mut self, location: Location, element: T);
+    fn insert_at(&mut self, location: Location, element: T) -> &mut Card;
     fn insert_all_at(&mut self, location: Location, element: Vec<T>);
     // Removes value at this location and return it.
     fn remove_at(&mut self, location: Location) -> Option<T>;
     fn remove_x_at(&mut self, count: usize, location: Location) -> Vec<Option<T>>;
 }
 
-#[derive(Clone,Copy,Debug,Serialize,Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Location {
     Default,
     /// Top of deck, same as Index(len()) or pop()/push()
@@ -50,7 +50,7 @@ pub enum Location {
     Index(usize),
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct ZoneCollection {
     pub player: u64,
     pub banished: Vec<Card>,
@@ -63,16 +63,32 @@ pub struct ZoneCollection {
 
 impl Zone<Card> for Vec<Card> {
     // Inserts value at this location
-    fn insert_at(&mut self, location: Location, element: Card) {
+    fn insert_at(&mut self, location: Location, element: Card) -> &mut Card {
         match location {
-            Location::Default => self.push(element),
-            Location::Top => self.push(element),
-            Location::Bottom => self.insert(0, element),
-            Location::Center => self.push(element),
-            Location::Random => self.push(element),
+            Location::Default => {
+                self.push(element);
+                self.last_mut().unwrap()
+            }
+            Location::Top => {
+                self.push(element);
+                self.last_mut().unwrap()
+            }
+            Location::Bottom => {
+                self.insert(0, element);
+                self.first_mut().unwrap()
+            }
+            Location::Center => {
+                self.push(element);
+                self.last_mut().unwrap()
+            }
+            Location::Random => {
+                self.push(element);
+                self.last_mut().unwrap()
+            }
             Location::Index(index) => {
                 let i = Ord::min(index, self.len());
-                self.insert(i, element)
+                self.insert(i, element);
+                self.get_mut(i).unwrap()
             }
         }
     }
@@ -96,14 +112,13 @@ impl Zone<Card> for Vec<Card> {
                 } else {
                     Some(self.remove(index))
                 }
-            },
+            }
         }
     }
 
-
     fn insert_all_at(&mut self, location: Location, cards: Vec<Card>) {
         for card in cards {
-            self.insert_at(location,card)
+            self.insert_at(location, card);
         }
     }
 

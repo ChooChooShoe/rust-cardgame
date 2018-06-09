@@ -11,6 +11,8 @@ use game::zones::ZoneName;
 use game::zones::{Location, Zone};
 use game::{ActionError, ActionResult, OkCode};
 use player::controller::Controller;
+use entity::Dispatch;
+use entity::Trigger;
 
 // This is the players reprsentation in the game.
 // Player owns the cards and the moves.
@@ -71,13 +73,13 @@ impl Player {
         //TODO on card drawn event
         for c in drawn_cards {
             match c {
-                Some(card) => {
-                    info!("on_card_drawn  event: deck -> hand : {:?}", card.name());
-                    self.zones.hand.insert_at(Location::Top, card);
-                    info!("after_card_drawn event:");
+                Some(mut card) => {
+                    Dispatch::broadcast(Trigger::OnCardDrawn(self, &mut card));
+                    let mut card_moved = self.zones.hand.insert_at(Location::Top, card);
+                    Dispatch::broadcast(Trigger::AfterCardDrawn(&mut card_moved));
                 }
                 None => {
-                    info!("on_card_draw_fail event: deck -> hand : NONE");
+                    Dispatch::broadcast(Trigger::OnCardDrawFail(self));
                 }
             }
         }

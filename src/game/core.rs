@@ -83,7 +83,6 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
         c.on_muligin_end().unwrap();
     }
 
-    let mut dispatch = Dispatch::new();
     let mut trigger_queue = VecDeque::new();
     let mut active_player = 0;
     let mut turn_count = 0;
@@ -101,7 +100,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                 Event::OnClientAction(action, pid) => {
                     info!("client action!: action = {:?}, pid = {}", action, pid);
                     let _con = &controllers[pid];
-                    trigger_queue.push_back(Trigger::OnCardDrawn(6));
+                    //trigger_queue.push_back(Trigger::OnCardDrawn(6));
                 }
                 Event::Connect(connection) => {
                     //info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
@@ -122,7 +121,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                 break;
             }
             match trigger {
-                Trigger::OnCardDrawn(u) => {},
+                Trigger::OnCardDrawn(player,card) => {},
                 _ => {}
             }
         }

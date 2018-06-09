@@ -7,7 +7,9 @@ pub mod action_result;
 pub mod command;
 pub mod deck;
 pub mod player;
+pub mod script;
 
+pub use self::script::GameScript;
 pub use self::player::Player;
 pub use self::game_board::GameBoard;
 pub use self::zones::ZoneCollection;

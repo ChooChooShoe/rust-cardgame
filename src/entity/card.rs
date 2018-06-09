@@ -1,6 +1,7 @@
 use entity::cardpool::CardData;
 use entity::cardpool::CardPool;
 use entity::{TagKey,TagVal};
+use game::GameScript;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -8,29 +9,51 @@ use std::sync::RwLock;
 
 pub type CardId = [char; 8];
 
-#[derive(Clone, Debug)]
 pub struct Card {
     uid: u64,
     name: String,
     text: String,
     tags: HashMap<TagKey, TagVal>,
+    script: Box<GameScript>,
 }
 
+impl Clone for Card {
+    fn clone(&self) -> Card {
+        Card {
+            uid: self.uid,
+            name: self.name.clone(),
+            text: self.text.clone(),
+            tags: self.tags.clone(),
+            script: self.script.box_clone(),
+        }
+    }
+}
+
+impl fmt::Debug for Card {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Card {{ uid: {}, name: {}, tags.len(): {}}}", self.uid, self.name, self.tags.len())
+    }
+}
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}:{} ({} tags)", self.name, self.uid, self.tags.len())
+        write!(f, "{}#{:04} ({} tags)", self.name, self.uid, self.tags.len())
     }
 }
 
 impl Card {
-    /// Creates a blank card with given id and name.
-    pub fn from_string(uid: u64, name: &str, text: &str) -> Card {
+    pub fn new(uid: u64, name: &str, text: &str, script: Box<GameScript>) -> Card
+    {
         Card {
             uid,
             name: String::from(name),
             text: String::from(text),
             tags: HashMap::new(),
+            script: script,
         }
+    }
+    /// Creates a blank card with given id and name.
+    pub fn from_string(uid: u64, name: &str, text: &str) -> Card {
+        Card::new(uid,name,text,Box::new(()))
     }
     /// Creates a known card using data from the cardpool.
     pub fn from_pool(uid: u64, data: &CardData) -> Card {
@@ -39,6 +62,7 @@ impl Card {
             name: String::from(data.name()),
             text: String::from(data.text()),
             tags: data.clone_tags(),
+            script: Box::new(()),
         }
     }
 
@@ -89,5 +113,9 @@ impl Card {
     }
     pub fn set_cost(&mut self, v: i32) -> i32 {
         self.set_tag(TagKey::Cost, TagVal::from(v)).as_i32()
+    }
+
+    pub fn script(&mut self) -> &mut Box<GameScript> {
+        &mut self.script
     }
 }
