@@ -18,31 +18,15 @@ use url;
 pub fn connect<U: Borrow<str>>(url: U, game: Game) {
     let (send,recv) = channel();
     let h_game = game.clone();
-    //let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Client, h_game));
+    let thread_handle = thread::spawn(move || core::run_client(recv, NetworkMode::Client, h_game));
 
     ws::connect(url, |out: WsSender| {
-        out.send(Action::DirectAttack(10,20).encode()).unwrap();
-        out.send(Action::EndTurn(2).encode()).unwrap();
-        out.send(Action::DrawCardAnon(0,5).encode()).unwrap();
         Client::new(out, game.clone(), send.clone())
     }).expect("Couldn't begin connection to remote server and/or create a local client");
 
     info!("Waiting for the game client thread to close.");
-    //thread_handle.join().expect("Couldn't join on the game client thread");
+    thread_handle.join().expect("Couldn't join on the game client thread");
 }
-//fn def() {
-//    let mut input = String::new();
-//    match io::stdin().read_line(&mut input) {
-//        Ok(num_bytes) => {
-//            let c = input.trim().to_string();
-//            if c == "bytes" {
-//                self.ws_out.send(Message::Binary(vec!(num_bytes as u8)))?;
-//            }
-//            self.ws_out.send(Message::Text(c))
-//        }
-//        Err(_e) => Ok(())
-//    }
-//}
 
 pub struct Client {
     ws_out: WsSender,
@@ -73,6 +57,9 @@ impl Handler for Client {
     }
     
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
+        if let Some(addr) = try!(shake.remote_addr()) {
+            debug!("Connection with {} now open", addr);
+        }
         let controller = WsNetController::new(self.player_index.unwrap_or_default(), self.ws_out.clone());
         let ev = Event::Connect(Box::new(controller));
         
@@ -89,15 +76,14 @@ impl Handler for Client {
 
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        let action = Action::decode(msg);
+        let action = try!(Action::decode(&msg));
         info!("Received action {:?}", action);
-        self.thread_out.send(Event::TakeAction(action, self.player_index.unwrap_or_default())).map_err(|e| Error::new(
-            ErrorKind::Internal, format!("Thread channel dropped wehn sending action: {:?}", e)
-        ))
+        let ev = Event::TakeAction(action, self.player_index.unwrap_or_default());
+        self.thread_out.send(ev).map_err(thread_err)
     }
     #[inline]
     fn on_request(&mut self, req: &Request) -> Result<Response> {
-        info!("Client received request. This should not happen!");
+        warn!("Client received request. This should not happen!");
         Response::from_request(req)
     }
     #[inline]
@@ -113,7 +99,7 @@ impl Handler for Client {
                         self.player_index = Some(pid);
                         Ok(())
                     } else {
-                        Err(Error::new(ErrorKind::Capacity, format!("Server gave us a non-number player id '{}'.", pid_string)))
+                        Err(Error::new(ErrorKind::Protocol, format!("Server gave us a non-number player id '{}'.", pid_string)))
                     }
                 Err(x) => {
                     Err(Error::new(ErrorKind::Encoding(x.utf8_error()), "Server gave us an invalid UTF-8 string for player id."))

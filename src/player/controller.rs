@@ -1,26 +1,16 @@
 use game::{Zone,Player};
 use std::io;
 use ws::Sender as WsSender;
+use game::Action;
 
 pub trait Controller: Send {
     fn index(&self) -> usize;
-    fn on_muligin_start(&self) -> Result<(), ()>;
-    fn on_muligin_end(&self) -> Result<(), ()>;
+    fn on_action(&mut self, action: &Action) -> Result<(), ()>;
 }
 pub struct WsNetController {
     player_index: usize,
     ws_sender: WsSender,
 }
-
-//impl Networked for Controller
-//{
-//    fn netid(&self) -> u64 {
-//        match self {
-//            &Controller::CmdLinePlayer(netid) => netid as u64,
-//            &Controller::AiPlayer(netid) => netid as u64,
-//        }
-//    }
-//}
 
 impl WsNetController {
     pub fn new(pidx: usize, send: WsSender) -> WsNetController {
@@ -29,10 +19,6 @@ impl WsNetController {
             ws_sender: send,
         }
     }
-    pub fn on_game_start() -> Result<(), ()> {
-        Ok(())
-    }
-
     pub fn handle_user_input(&mut self, player: &mut Player, args: Vec<&str>) {
         match args.len() {
             0 => println!("No command entered"),
@@ -63,11 +49,7 @@ impl Controller for WsNetController {
     fn index(&self) -> usize {
         return self.player_index;
     }
-    fn on_muligin_start(&self) -> Result<(), ()> {
-        Ok(())
-    }
-
-    fn on_muligin_end(&self) -> Result<(), ()> {
-        Ok(())
+    fn on_action(&mut self, action: &Action) -> Result<(), ()> {
+        Ok(self.ws_sender.send(action.encode().unwrap()).unwrap())
     }
 }

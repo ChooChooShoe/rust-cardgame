@@ -18,9 +18,13 @@ pub struct GameBoard {
 }
 
 impl GameBoard {
-    pub fn new(_uid: u64, player1: Player, player2: Player) -> GameBoard {
+    pub fn new(player_count: usize) -> GameBoard {
+        let mut players = Vec::with_capacity(player_count);
+        for x in 0..player_count {
+            players.push(Player::new(x, format!("Player #{}", x+1)));
+        }
         GameBoard {
-            players: vec![player1, player2],
+            players,
             active_player_pidx: 0,
             trigger_callbacks: Vec::new(),
         }

@@ -15,7 +15,7 @@ pub use self::game_board::GameBoard;
 pub use self::zones::ZoneCollection;
 pub use self::zones::Zone;
 pub use self::deck::{Deck,Entry as DeckEntry};
-pub use self::action::{Action,ClientAction};
+pub use self::action::{Action,Act};
 pub use self::action_result::{Error as ActionError,OkCode,Result as ActionResult};
 
 pub const MAX_PLAYER_COUNT: usize = 2; 
@@ -37,6 +37,14 @@ impl Game {
         Game {
             board: Arc::new(Mutex::new(board)), 
             pool: Arc::new(RwLock::new(pool)),
+            next_netid: Arc::new(Mutex::new(1)),
+        }
+    }
+    // Create a new version the Game with same CardPool and a spearate GameBoard.
+    pub fn new_with_board(&self, board: GameBoard) -> Game {
+        Game {
+            board: Arc::new(Mutex::new(board)), 
+            pool: self.pool.clone(),
             next_netid: Arc::new(Mutex::new(1)),
         }
     }

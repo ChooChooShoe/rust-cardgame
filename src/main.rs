@@ -1,5 +1,6 @@
 //#![feature(plugin, use_extern_macros)]
 //#![plugin(tarpc_plugins)]
+#![feature(deadline_api)]
 #![allow(dead_code)]
 //#![allow(unused_variables)]
 #![allow(unused_imports)]
@@ -48,11 +49,11 @@ fn main() {
     log::set_max_level(SIMPLE_LOGGER.level.to_level_filter());
     
     info!("Card Game Engine");
-    info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
-    info!("Val: {}", std::mem::size_of::<entity::TagVal>());
-    info!("Val: {}", std::mem::size_of::<Option<entity::TagVal>>());
-    info!("Val: {}", std::mem::size_of::<u64>());
-    info!("Number: {}", std::mem::size_of::<serde_json::Number>());
+    // info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
+    // info!("Val: {}", std::mem::size_of::<entity::TagVal>());
+    // info!("Val: {}", std::mem::size_of::<Option<entity::TagVal>>());
+    // info!("Val: {}", std::mem::size_of::<u64>());
+    // info!("Number: {}", std::mem::size_of::<serde_json::Number>());
 
 
     CardPool::gen_cards_to_disk();
@@ -69,27 +70,25 @@ fn main() {
         }
     }
 
-    let player1 = Player::new(1,String::from("player #1"));
-    let player2 = Player::new(2,String::from("player #2"));
-    let board = game::GameBoard::new(42, player1, player2);
-    let game = ::game::Game::new(board,pool);
+    let board = game::GameBoard::new(2);
+    let game0 = game::Game::new(board,pool);
 
     if client {
         //net::client::connect("ws://127.0.0.1:3012", game);
     } else {
-        let game1 = game.clone();
-        let game2 = game.clone();
+        let game1 = game0.new_with_board(game::GameBoard::new(2));
+        let game2 = game0.new_with_board(game::GameBoard::new(2));
         let handels = (
             thread::spawn(move || {
                 net::server::listen("127.0.0.1:3012", game2)
             }),
             thread::spawn(move || {
-                thread::park_timeout(Duration::from_millis(10));
+                thread::sleep(Duration::from_millis(10));
                 net::client::connect("ws://127.0.0.1:3012", game1)
             }),
             thread::spawn(move || {
-                thread::park_timeout(Duration::from_millis(30));
-                net::client::connect("ws://127.0.0.1:3012", game)
+                thread::sleep(Duration::from_millis(30));
+                net::client::connect("ws://127.0.0.1:3012", game0)
             }),
         );
         info!("Joining Thread 0 for Server");
