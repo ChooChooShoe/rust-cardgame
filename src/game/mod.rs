@@ -66,4 +66,7 @@ impl Game {
         drop(guard);
         curr_num
     }
+    pub fn max_players(&self) -> usize {
+        2
+    }
 }

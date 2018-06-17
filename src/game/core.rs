@@ -37,28 +37,24 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
 
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
 
-    info!("Waiting for connections");
     let mut controllers = Vec::new();
+    let mut active_player = 0;
+    let mut turn_count = 0;
+    let mut current_step = Step::PlayersConnecting;
 
+    info!("Waiting for connections");
     loop {
         // Wait for all connections.
         match recv.recv() {
             Ok(Event::Connect(controller)) => {
                 info!("Core got connection");
-
-                match mode {
-                    NetworkMode::Server => {
-                        controllers.push(controller);
-
-                        if controllers.len() == 2 {
-                            break;
-                        }
-                    }
-                    _ => unreachable!(),
+                controllers.push(controller);
+                if controllers.len() == game.max_players() {
+                    break;
                 }
             }
             Ok(_) => warn!("No players have connected yet! Event can not be handled."),
-            Err(RecvError) => return
+            Err(RecvError) => return,
         }
     }
     //connections.sort_by(|a, b| a.index().cmp(&b.index()));
@@ -71,26 +67,6 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
         b.shuffle_decks();
     }
 
-    for c in &mut controllers {
-        c.on_action(&Action::MuliginStart()).unwrap();
-    }
-    let muligin_deadline = game_start_time + Duration::from_secs(45);
-    loop {
-        match recv.recv_deadline(muligin_deadline) {
-            Ok(Event::OnShutdown()) => return,
-            Err(RecvTimeoutError::Disconnected) => return,
-            Err(RecvTimeoutError::Timeout) => break,
-            Ok(e) => {},
-        }
-    }
-    for c in &mut controllers {
-        c.on_action(&Action::MuliginEnd()).unwrap();
-    }
-
-    //let mut trigger_queue = VecDeque::new();
-    let mut active_player = 0;
-    let mut turn_count = 0;
-
     loop {
         match recv.recv() {
             Ok(Event::WsError(_err, _pid)) => break,
@@ -99,9 +75,6 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
             //Err(TryRecvError::Disconnected) => break,
             Err(RecvError) => break,
 
-            Ok(Event::MuliginResult{swap}) => {
-                info!("Muligin swap!")
-            }
             Ok(Event::TakeAction(mut a, pid)) => {
                 info!("PLayer action!: action = {:?}, pid = {}", a, pid);
                 match a.perform(&game) {
@@ -149,7 +122,10 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
             Ok(Event::Connect(new_conn)) => connection = Some(new_conn),
             Ok(Event::ConnectionLost(_pid)) => break,
             Ok(Event::Disconnect(code, pid)) => {
-                info!("Client lost connection to server: code = {:?}, pid = {}", code, pid);
+                info!(
+                    "Client lost connection to server: code = {:?}, pid = {}",
+                    code, pid
+                );
             }
             _ => {}
         }
@@ -158,17 +134,33 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
+    PlayersConnecting,
     GameStart,
-    PlayerTurn(usize, u32),
+    MuliginStart,
+    MuliginEnd,
+    PlayerTurn(usize, u32, Phase),
     EndGame,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    Start,
+    Draw,
+    Play,
+    Combat,
+    End,
+    Cleanup,
 }
 
 impl Step {
     pub fn get_duration(&self) -> Duration {
         match self {
-            &Step::GameStart => Duration::new(3, 0),
-            &Step::PlayerTurn(_pidx, _turn) => Duration::new(2, 0),
-            &Step::EndGame => Duration::new(10, 0),
+            Step::PlayersConnecting => Duration::from_secs(1),
+            Step::GameStart => Duration::from_millis(500),
+            Step::MuliginStart => Duration::from_secs(4),
+            Step::MuliginEnd => Duration::from_millis(500),
+            Step::PlayerTurn(_pidx, _turn, _phase) => Duration::from_secs(2),
+            Step::EndGame => Duration::from_millis(100),
         }
     }
 }
@@ -188,28 +180,28 @@ impl StepLoop {
     }
 }
 
-impl Iterator for StepLoop {
-    type Item = Step;
+// impl Iterator for StepLoop {
+//     type Item = Step;
 
-    fn next(&mut self) -> Option<Step> {
-        let curr = self.next.clone();
-        self.next = match curr {
-            Some(Step::GameStart) => Some(Step::PlayerTurn(0, 0)),
-            Some(Step::PlayerTurn(i, t)) => {
-                let next_pidx = (i + 1) % MAX_PLAYER_COUNT;
-                let mut turn_count = t;
-                if next_pidx == 0 {
-                    turn_count += 1;
-                }
-                if turn_count >= MAX_TURNS {
-                    Some(Step::EndGame)
-                } else {
-                    Some(Step::PlayerTurn(next_pidx, turn_count))
-                }
-            }
-            Some(Step::EndGame) => None,
-            None => None,
-        };
-        curr
-    }
-}
+//     fn next(&mut self) -> Option<Step> {
+//         let curr = self.next.clone();
+//         self.next = match curr {
+//             Some(Step::GameStart) => Some(Step::PlayerTurn(0, 0)),
+//             Some(Step::PlayerTurn(i, t)) => {
+//                 let next_pidx = (i + 1) % MAX_PLAYER_COUNT;
+//                 let mut turn_count = t;
+//                 if next_pidx == 0 {
+//                     turn_count += 1;
+//                 }
+//                 if turn_count >= MAX_TURNS {
+//                     Some(Step::EndGame)
+//                 } else {
+//                     Some(Step::PlayerTurn(next_pidx, turn_count))
+//                 }
+//             }
+//             Some(Step::EndGame) => None,
+//             None => None,
+//         };
+//         curr
+//     }
+// }

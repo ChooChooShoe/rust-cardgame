@@ -29,7 +29,6 @@ pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
         sender: send,
         game,
         next_player_id: 0,
-        max_players: 2,
     };
     let ws = Builder::new()
         .with_settings(settings)
@@ -44,13 +43,12 @@ struct ServerFactory {
     sender: TSender<Event>,
     game: Game,
     next_player_id: usize,
-    max_players: usize,
 }
 impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        if self.next_player_id < self.max_players {
+        if self.next_player_id < self.game.max_players() {
             let ret =
                 ServerHandle::new(out, self.sender.clone(), self.next_player_id, Role::Player);
             self.next_player_id += 1;
