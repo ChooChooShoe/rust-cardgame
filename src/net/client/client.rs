@@ -61,7 +61,7 @@ impl Handler for Client {
             debug!("Connection with {} now open", addr);
         }
         let controller = WsNetController::new(self.player_index.unwrap_or_default(), self.ws_out.clone());
-        let ev = Event::Connect(Box::new(controller));
+        let ev = Event::Connect(controller.into());
         
         self.thread_out.send(ev).map_err(thread_err)
     }

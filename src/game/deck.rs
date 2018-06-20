@@ -16,6 +16,17 @@ pub struct Deck {
     valid: bool,
 }
 impl Deck {
+    pub fn new() -> Deck {
+        Deck {
+            name: String::from("Example"),
+            cards: vec!(
+                Entry::new("auto_gen_card_005",3),
+                Entry::new("auto_gen_card_006",3),
+                Entry::new("auto_gen_card_003",2),
+            ),
+            valid: true,
+        }
+    }
     pub fn cards_for_zone(&self, zone: ZoneName) -> &[Entry] {
         match zone {
             ZoneName::Deck => &self.cards[..],

@@ -5,7 +5,7 @@ use game::Player;
 use game::Zone;
 use game::ZoneCollection;
 use game::{MAX_PLAYER_COUNT, MAX_TURNS};
-use player::Controller;
+use player::controller::{Controller,ControllerCollection};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, RecvError, RecvTimeoutError, TryRecvError};
@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use utils::timer::Timer;
 
 use entity::{Dispatch, Trigger};
-use game::action::{Act, Action};
+use game::action::{Action,ClientAction,ServerAction};
 use game::Game;
 use net::NetworkMode;
 use vecmap::VecMap;
@@ -22,9 +22,7 @@ use ws::{CloseCode, Error as WsError, Sender as WsSender};
 
 // Message from clients to game loop.
 pub enum Event {
-    Connect(Box<Controller>),
-    /// When we as a server got a Action from thte client.
-    OnClientAction(Action, usize),
+    Connect(Controller),
     TakeAction(Action, usize),
     Disconnect(CloseCode, usize),
     WsError(WsError, usize),
@@ -53,18 +51,21 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                     break;
                 }
             }
-            Ok(_) => warn!("No players have connected yet! Event can not be handled."),
+            Ok(_) => warn!("All players have not connected yet! Event can not be handled."),
             Err(RecvError) => return,
         }
     }
     //connections.sort_by(|a, b| a.index().cmp(&b.index()));
 
     info!("Game Started");
-    let game_start_time = Instant::now();
+    let _game_start_time = Instant::now();
+
+    controllers.send_all(&Action::GameStart());
 
     {
         let mut b = game.board_lock();
-        b.shuffle_decks();
+        let p = game.pool_lock();
+        b.shuffle_decks(&p);
     }
 
     loop {
@@ -75,17 +76,13 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
             //Err(TryRecvError::Disconnected) => break,
             Err(RecvError) => break,
 
-            Ok(Event::TakeAction(mut a, pid)) => {
-                info!("PLayer action!: action = {:?}, pid = {}", a, pid);
-                match a.perform(&game) {
+            Ok(Event::TakeAction(action, pid)) => {
+                info!("Srever got Player action: {:?}, pid = {}", action, pid);
+                let controller = &mut controllers[pid];
+                match ServerAction::perform(action, &game, controller) {
                     Ok(code) => info!("action: {:?}", code),
                     Err(e) => info!("action: {:?}", e),
                 }
-            }
-            Ok(Event::OnClientAction(action, pid)) => {
-                info!("client action!: action = {:?}, pid = {}", action, pid);
-                let _con = &controllers[pid];
-                //trigger_queue.push_back(Trigger::OnCardDrawn(6));
             }
             Ok(Event::Connect(connection)) => {
                 //info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
@@ -104,22 +101,27 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
 
 pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     assert_eq!(mode, NetworkMode::Client);
-    let mut connection = None;
+    let mut controller = match recv.recv() {
+        Ok(Event::Connect(conn)) => conn,
+        _ => {
+            warn!("Client did not connect to controller");
+            return;
+        }
+    };
     loop {
         match recv.recv() {
             Err(RecvError) => break,
             Ok(Event::WsError(_err, _pid)) => break,
             Ok(Event::OnShutdown()) => break,
 
-            Ok(Event::TakeAction(a, pid)) => {
-                info!("PLayer action!: action = {:?}, pid = {}", a, pid);
-                match a.perform(&game) {
+            Ok(Event::TakeAction(action, pid)) => {
+                info!("Client got Player action: {:?}, pid = {}", action, pid);
+                match ClientAction::perform(action, &game, &mut controller) {
                     Ok(code) => info!("action: {:?}", code),
                     Err(e) => info!("action: {:?}", e),
                 }
             }
-            Ok(Event::OnClientAction(_action, _pid)) => unreachable!(),
-            Ok(Event::Connect(new_conn)) => connection = Some(new_conn),
+            Ok(Event::Connect(new_conn)) => break,
             Ok(Event::ConnectionLost(_pid)) => break,
             Ok(Event::Disconnect(code, pid)) => {
                 info!(

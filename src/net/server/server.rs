@@ -123,7 +123,7 @@ impl Handler for ServerHandle {
         try!(self.ws.timeout(30_000, EXPIRE));
         // create a controller and send to thread.
         let controller = WsNetController::new(self.pid, self.ws.clone());
-        let event = Event::Connect(Box::new(controller));
+        let event = Event::Connect(controller.into());
         self.core.send(event).map_err(thread_err)
     }
 
@@ -141,7 +141,7 @@ impl Handler for ServerHandle {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let action = try!(Action::decode(&msg));
         info!("Received action {:?}", action);
-        let event = Event::OnClientAction(action, self.pid);
+        let event = Event::TakeAction(action, self.pid);
         self.core.send(event).map_err(thread_err)
     }
 
@@ -167,7 +167,7 @@ impl Handler for ServerHandle {
             }
             EXPIRE => self.ws.close(CloseCode::Away),
             MULIGIN => {
-                let event = Event::OnClientAction(Action::MuliginResult { swap: false }, self.pid);
+                let event = Event::TakeAction(Action::MuliginResult { swap: false }, self.pid);
                 self.core.send(event).map_err(thread_err)
             }
             _ => Err(Error::new(

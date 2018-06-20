@@ -75,6 +75,7 @@ impl Dispatch {
     }
 
     pub fn broadcast(mut trigger: Trigger) {
+        info!("Broadcast Trigger!");
         trigger.pre_broadcast();
         if trigger.cancelable() {
             for x in INSTANCE.read().unwrap().trigger_callbacks.iter() {

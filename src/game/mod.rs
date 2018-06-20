@@ -15,7 +15,7 @@ pub use self::game_board::GameBoard;
 pub use self::zones::ZoneCollection;
 pub use self::zones::Zone;
 pub use self::deck::{Deck,Entry as DeckEntry};
-pub use self::action::{Action,Act};
+pub use self::action::{Action};
 pub use self::action_result::{Error as ActionError,OkCode,Result as ActionResult};
 
 pub const MAX_PLAYER_COUNT: usize = 2; 

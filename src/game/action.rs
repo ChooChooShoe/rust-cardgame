@@ -2,17 +2,13 @@ use bincode::{deserialize, serialize, ErrorKind};
 use game::action_result::{Error, OkCode, Result};
 use game::Deck;
 use game::Game;
+use player::controller::Controller;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
 use std::fmt;
 use std::result::Result as StdResult;
+use std::time::Instant;
 use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
-
-/// The common version of act impleted for all actions.
-pub trait Act: Sized + fmt::Debug {
-    fn perform(self, game: &Game) -> Result;
-    fn undo(self, game: &Game) -> Result;
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Action {
@@ -35,14 +31,23 @@ pub enum Action {
     EndTurn(usize),
 
     // Sent from core
+    GameStart(),
     MuliginStart(),
     MuliginEnd(),
     // from server/client
-    MuliginResult{swap: bool},
+    MuliginResult { swap: bool },
 }
-
-impl Act for Action {
-    fn perform(self, game: &Game) -> Result {
+pub trait ServerAction {
+    fn perform(self, game: &Game, client: &mut Controller) -> Result;
+    fn undo(self, game: &Game) -> Result;
+}
+pub trait ClientAction {
+    fn perform(self, game: &Game, server: &mut Controller) -> Result;
+    fn undo(self, game: &Game) -> Result;
+}
+// Code for the server when a client want to do an action
+impl ServerAction for Action {
+    fn perform(self, game: &Game, client: &mut Controller) -> Result {
         match self {
             Action::EndTurn(p) => {
                 game.board_lock().player_mut(p).draw_x_cards(1);
@@ -56,6 +61,7 @@ impl Act for Action {
                 //game.board_lock().player_mut(pid).set_deck(deck);
                 Ok(OkCode::Nothing)
             }
+            Action::GameStart() => Err(Error::NotSupported),
             _ => Err(Error::NotSupported),
         }
     }
@@ -63,7 +69,21 @@ impl Act for Action {
         Err(Error::NotSupported)
     }
 }
-
+// Code for the client when the server wants us to act.
+impl ClientAction for Action {
+    fn perform(self, game: &Game, server: &mut Controller) -> Result {
+        match self {
+            Action::GameStart() => {
+                server.send(&Action::DrawCardAnon(0,3));
+                Ok(OkCode::Nothing)
+            }
+            _ => Ok(OkCode::Nothing),
+        }
+    }
+    fn undo(self, game: &Game) -> Result {
+        Err(Error::NotSupported)
+    }
+}
 impl Action {
     pub fn encode(&self) -> StdResult<Message, WsError> {
         match self {

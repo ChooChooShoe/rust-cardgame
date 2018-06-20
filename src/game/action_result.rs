@@ -1,26 +1,26 @@
+use bincode::*;
+use std::convert::{From, Into};
+use std::error::Error as StdError;
 use std::fmt;
 use std::result::Result as StdResult;
-use std::error::Error as StdError;
-use std::convert::{From, Into};
-use bincode::*;
 
-use game::Game;
 use game::Deck;
+use game::Game;
 use ws::Message;
 
 pub type Result = StdResult<OkCode, Error>;
 
-#[derive(Serialize,Deserialize,Clone,Debug,Eq,PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum OkCode {
     Nothing,
     EchoAction,
 }
 /// The type of an error.
-#[derive(Serialize,Deserialize,Clone,Eq,PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub enum Error {
     /// When an action perfroms when it is not supported.
     NotSupported,
-    /// Indicates an internal prossesing error. 
+    /// Indicates an internal prossesing error.
     Internal(String),
     /// Indicates an unknown error or error that was expected to happen.
     Generic,
@@ -32,7 +32,7 @@ pub enum Error {
     CantPayCost,
 }
 
-impl Error  {
+impl Error {
     pub fn from<T: StdError>(e: T) -> Error {
         Error::Internal(e.description().to_string())
     }
@@ -57,12 +57,12 @@ impl fmt::Display for Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match self {
-            &Error::Internal(_)      => "Internal Application Error",
-            &Error::Generic          => "Generic Error",
-            &Error::InvalidTarget    => "Invalid Target",
-            &Error::NoTarget         => "No Target",
-            &Error::CantPayCost      => "Can't Pay Cost",
-            _ => "No desciption"
+            Error::Internal(s) => "Internal Application Error",
+            Error::Generic => "Generic Error",
+            Error::InvalidTarget => "Invalid Target",
+            Error::NoTarget => "No Target",
+            Error::CantPayCost => "Can't Pay Cost",
+            Error::NotSupported => "Not Supported",
         }
     }
     fn cause(&self) -> Option<&StdError> {

@@ -1,3 +1,4 @@
+use entity::cardpool::CardPool;
 use entity::trigger::Dispatch;
 use entity::trigger::Trigger;
 use entity::Card;
@@ -14,7 +15,6 @@ use serde::{Deserialize, Serialize};
 pub struct GameBoard {
     pub players: Vec<Player>,
     active_player_pidx: usize,
-    trigger_callbacks: Vec<Box<Fn(&mut GameBoard, &mut Trigger) + Send>>,
 }
 
 impl GameBoard {
@@ -26,7 +26,6 @@ impl GameBoard {
         GameBoard {
             players,
             active_player_pidx: 0,
-            trigger_callbacks: Vec::new(),
         }
     }
     pub fn player_count(&self) -> usize {
@@ -65,8 +64,12 @@ impl GameBoard {
         &mut self.players[self.active_player_pidx]
     }
 
-    pub fn shuffle_decks(&mut self) {
+    pub fn shuffle_decks(&mut self, pool: &CardPool) {
+        let mut id = 0;
         //let mut rng = thread_rng();
+        for p in self.players_mut() {
+            id  = p.set_deck(::game::Deck::new(), pool, id);
+        }
 
         //let mut a = self.p1_zones.deck.as_mut_slice();
         //rng.shuffle(&mut a);

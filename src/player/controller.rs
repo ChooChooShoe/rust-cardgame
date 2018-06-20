@@ -1,12 +1,37 @@
+use std::time::Instant;
 use game::{Zone,Player};
 use std::io;
 use ws::Sender as WsSender;
 use game::Action;
 
-pub trait Controller: Send {
-    fn index(&self) -> usize;
-    fn on_action(&mut self, action: &Action) -> Result<(), ()>;
+
+pub trait ControllerCollection {
+    fn send_all(&mut self, action: &Action);
+    fn send(&mut self, index: usize, action: &Action);
 }
+impl ControllerCollection for Vec<Controller> {
+    fn send_all(&mut self, action: &Action) {
+        for controller in self {
+            controller.send(action).unwrap_or(())
+        }
+    }
+    fn send(&mut self, index: usize, action: &Action) {
+        self[index].send(action).unwrap_or(())
+    }
+}
+
+pub struct Controller {
+    inner: WsNetController,
+}
+impl Controller {
+    pub fn index(&self) -> usize {
+        self.inner.player_index
+    }
+    pub fn send(&mut self, action: &Action) -> Result<(), ()> {
+        self.inner.send(action)
+    }
+}
+
 pub struct WsNetController {
     player_index: usize,
     ws_sender: WsSender,
@@ -44,12 +69,13 @@ impl WsNetController {
 
         None
     }
-}
-impl Controller for WsNetController {
-    fn index(&self) -> usize {
-        return self.player_index;
-    }
-    fn on_action(&mut self, action: &Action) -> Result<(), ()> {
+    pub fn send(&mut self, action: &Action) -> Result<(), ()> {
+        // TODO make this not as bad.
         Ok(self.ws_sender.send(action.encode().unwrap()).unwrap())
+    }
+}
+impl Into<Controller> for WsNetController {
+    fn into(self) -> Controller {
+        Controller { inner: self }
     }
 }

@@ -49,7 +49,7 @@ impl GameScript for ExampleScript2 {
 
 impl GameScript for () {
     fn on_event(&mut self) {
-        println!("ok script empty");
+        info!("ok script empty");
     }
     fn box_clone(&self) -> Box<GameScript> {
         Box::new(())
