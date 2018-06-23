@@ -1,9 +1,9 @@
 //#![feature(plugin, use_extern_macros)]
 //#![plugin(tarpc_plugins)]
 #![feature(deadline_api)]
-#![allow(dead_code)]
+//#![allow(dead_code)]
 //#![allow(unused_variables)]
-#![allow(unused_imports)]
+//#![allow(unused_imports)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -55,11 +55,6 @@ fn main() {
     // info!("Val: {}", std::mem::size_of::<u64>());
     // info!("Number: {}", std::mem::size_of::<serde_json::Number>());
 
-
-    CardPool::gen_cards_to_disk();
-    let pool = CardPool::from_disk().expect("Cound not crate card pool");
-
-
     //let (c,s) = net::create_local_clientserver();
     //game::game_loop::run(pool, board);
     let mut client = false;
@@ -70,25 +65,20 @@ fn main() {
         }
     }
 
-    let board = game::GameBoard::new(2);
-    let game0 = game::Game::new(board,pool);
-
     if client {
         //net::client::connect("ws://127.0.0.1:3012", game);
     } else {
-        let game1 = game0.new_with_board(game::GameBoard::new(2));
-        let game2 = game0.new_with_board(game::GameBoard::new(2));
         let handels = (
             thread::spawn(move || {
-                net::server::listen("127.0.0.1:3012", game2)
+                net::server::listen("127.0.0.1:3012")
             }),
             thread::spawn(move || {
                 thread::sleep(Duration::from_millis(10));
-                net::client::connect("ws://127.0.0.1:3012", game1)
+                net::client::connect("ws://127.0.0.1:3012")
             }),
             thread::spawn(move || {
                 thread::sleep(Duration::from_millis(30));
-                net::client::connect("ws://127.0.0.1:3012", game0)
+                net::client::connect("ws://127.0.0.1:3012")
             }),
         );
         info!("Joining Thread 0 for Server");

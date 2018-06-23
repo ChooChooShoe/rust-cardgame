@@ -57,7 +57,7 @@ impl fmt::Display for Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match self {
-            Error::Internal(s) => "Internal Application Error",
+            Error::Internal(_) => "Internal Application Error",
             Error::Generic => "Generic Error",
             Error::InvalidTarget => "Invalid Target",
             Error::NoTarget => "No Target",

@@ -6,26 +6,28 @@ use game::ZoneCollection;
 use player::Controller;
 use std::collections::HashMap;
 //use tags::*;
+use game::Player;
 use game::Zone;
 use net::Networked;
-use game::Player;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
-pub struct GameBoard {
+pub struct Game {
     pub players: Vec<Player>,
     active_player_pidx: usize,
+    battlefield: Vec<Card>,
 }
 
-impl GameBoard {
-    pub fn new(player_count: usize) -> GameBoard {
+impl Game {
+    pub fn new(player_count: usize) -> Game {
         let mut players = Vec::with_capacity(player_count);
         for x in 0..player_count {
-            players.push(Player::new(x, format!("Player #{}", x+1)));
+            players.push(Player::new(x, format!("Player #{}", x + 1)));
         }
-        GameBoard {
+        Game {
             players,
             active_player_pidx: 0,
+            battlefield: Vec::new(),
         }
     }
     pub fn player_count(&self) -> usize {
@@ -63,12 +65,14 @@ impl GameBoard {
     pub fn active_player_mut(&mut self) -> &mut Player {
         &mut self.players[self.active_player_pidx]
     }
+    pub fn max_players(&self) -> usize {
+        self.players.len()
+    }
 
-    pub fn shuffle_decks(&mut self, pool: &CardPool) {
-        let mut id = 0;
+    pub fn shuffle_decks(&mut self) {
         //let mut rng = thread_rng();
         for p in self.players_mut() {
-            id  = p.set_deck(::game::Deck::new(), pool, id);
+            p.set_deck(::game::Deck::new());
         }
 
         //let mut a = self.p1_zones.deck.as_mut_slice();
@@ -76,6 +80,13 @@ impl GameBoard {
 
         //let mut b = self.p2_zones.deck.as_mut_slice();
         //rng.shuffle(&mut b);
+    }
+
+    pub fn battlefield(&self) -> &[Card] {
+        &self.battlefield
+    }
+    pub fn battlefield_mut(&mut self) -> &mut [Card] {
+        &mut self.battlefield
     }
 
     pub fn run_mulligan(&mut self) {

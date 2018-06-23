@@ -1,5 +1,5 @@
-use entity::card::{Card};
-use entity::{TagKey,TagVal};
+use entity::card::{Card, CardId};
+use entity::{TagKey, TagVal};
 use serde_json;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -8,13 +8,14 @@ use std::fs::{self, File};
 use std::io;
 use std::io::ErrorKind;
 use std::sync::Arc;
-use std::sync::RwLock;
+use std::sync::Mutex;
 
 /// This is all the data needed to create a card
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct CardData {
     name: String,
     text: String,
+    script: String,
     tags: HashMap<TagKey, TagVal>,
 }
 impl CardData {
@@ -22,6 +23,7 @@ impl CardData {
         CardData {
             name: String::from(name),
             text: String::new(),
+            script: String::from("none"),
             tags: HashMap::with_capacity(8),
         }
     }
@@ -40,36 +42,71 @@ impl CardData {
     pub fn text(&self) -> &str {
         &self.text
     }
+    #[inline]
+    pub fn script(&self) -> &str {
+        &self.script
+    }
 }
 
+lazy_static! {
+    static ref INSTANCE: Mutex<CardPool> = Mutex::new(CardPool {
+        all_cards: HashMap::new(),
+        last_instance_id: 0,
+    });
+}
 pub struct CardPool {
     all_cards: HashMap<String, CardData>,
+    last_instance_id: u64,
 }
 
 impl CardPool {
     /// Makes a Card from the shared name or generates an 'Unknown Card' if name is not known.
-    pub fn make_card(&self, uid: u64, name: &str) -> Card {
-        match self.all_cards.get(name) {
-            Some(s) => Card::from_pool(uid, s),
-            None => Card::from_string(uid, "Unknown Card", &format!("No card named '{}'", name)),
+    /// The CardId is set not set by the pool.
+    pub fn make_card_with_id(id: CardId, name: &str) -> Card {
+        let pool = INSTANCE.lock().unwrap();
+        match pool.all_cards.get(name) {
+            Some(s) => Card::from_pool(id, s),
+            None => Card::from_string(id, "Unknown Card", &format!("No card named '{}'", name)),
+        }
+    }
+    /// Makes a Card from the shared name or generates an 'Unknown Card' if name is not known.
+    pub fn make_card(name: &str) -> Card {
+        let mut pool = INSTANCE.lock().unwrap();
+        pool.last_instance_id += 1;
+        match pool.all_cards.get(name) {
+            Some(s) => Card::from_pool(pool.last_instance_id, s),
+            None => Card::from_string(
+                pool.last_instance_id,
+                "Unknown Card",
+                &format!("No card named '{}'", name),
+            ),
         }
     }
     // Makes a Card from the shared name only if the name is known.
-    pub fn try_make_card(&self, uid: u64, name: &str) -> Option<Card> {
-        match self.all_cards.get(name) {
-            Some(s) => Some(Card::from_pool(uid, s)),
+    pub fn try_make_card(name: &str) -> Option<Card> {
+        let mut pool = INSTANCE.lock().unwrap();
+        let res = match pool.all_cards.get(name) {
+            Some(s) => Some(Card::from_pool(pool.last_instance_id, s)),
             None => None,
+        };
+        if res.is_some() {
+            pool.last_instance_id += 1;
         }
+        res
     }
 
     pub fn from_disk() -> io::Result<CardPool> {
         let file = File::open("./output/cards_out.json")?;
         let in_data: HashMap<String, CardData> = serde_json::from_reader(file)?;
-        Ok(CardPool { all_cards: in_data })
+        Ok(CardPool {
+            all_cards: in_data,
+            last_instance_id: 0,
+        })
     }
-    pub fn gen_cards_to_disk() {
+    fn new() -> CardPool {
         let mut pool = CardPool {
             all_cards: HashMap::with_capacity(20),
+            last_instance_id: 0,
         };
         for i in 0..20 {
             let mut tags = HashMap::new();
@@ -82,13 +119,12 @@ impl CardPool {
                 CardData {
                     name: format!("Card #{:03}", i),
                     text: format!("No Text"),
+                    script: String::from("none"),
                     tags,
                 },
             );
         }
-
-        pool.write_to_disk()
-            .expect("Unable to write to card database");
+        pool
     }
     pub fn write_to_disk(&self) -> io::Result<()> {
         match fs::create_dir("./output/") {

@@ -38,26 +38,26 @@ pub enum Action {
     MuliginResult { swap: bool },
 }
 pub trait ServerAction {
-    fn perform(self, game: &Game, client: &mut Controller) -> Result;
-    fn undo(self, game: &Game) -> Result;
+    fn perform(self, game: &mut Game, client: &mut Controller) -> Result;
+    fn undo(self, game: &mut Game) -> Result;
 }
 pub trait ClientAction {
-    fn perform(self, game: &Game, server: &mut Controller) -> Result;
-    fn undo(self, game: &Game) -> Result;
+    fn perform(self, game: &mut Game, server: &mut Controller) -> Result;
+    fn undo(self, game: &mut Game) -> Result;
 }
 // Code for the server when a client want to do an action
 impl ServerAction for Action {
-    fn perform(self, game: &Game, client: &mut Controller) -> Result {
+    fn perform(self, game: &mut Game, _client: &mut Controller) -> Result {
         match self {
             Action::EndTurn(p) => {
-                game.board_lock().player_mut(p).draw_x_cards(1);
+                game.player_mut(p).draw_x_cards(1);
                 Ok(OkCode::Nothing)
             }
             Action::DrawCardAnon(pid, amount) => {
-                game.board_lock().player_mut(pid).draw_x_cards(amount);
+                game.player_mut(pid).draw_x_cards(amount);
                 Ok(OkCode::Nothing)
             }
-            Action::SetDeck(pid, deck) => {
+            Action::SetDeck(_pid, _deck) => {
                 //game.board_lock().player_mut(pid).set_deck(deck);
                 Ok(OkCode::Nothing)
             }
@@ -65,22 +65,22 @@ impl ServerAction for Action {
             _ => Err(Error::NotSupported),
         }
     }
-    fn undo(self, game: &Game) -> Result {
+    fn undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
 }
 // Code for the client when the server wants us to act.
 impl ClientAction for Action {
-    fn perform(self, game: &Game, server: &mut Controller) -> Result {
+    fn perform(self, _game: &mut Game, server: &mut Controller) -> Result {
         match self {
             Action::GameStart() => {
-                server.send(&Action::DrawCardAnon(0,3));
+                server.send(&Action::DrawCardAnon(0,3)).unwrap();
                 Ok(OkCode::Nothing)
             }
             _ => Ok(OkCode::Nothing),
         }
     }
-    fn undo(self, game: &Game) -> Result {
+    fn undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
 }

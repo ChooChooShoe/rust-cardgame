@@ -1,6 +1,5 @@
 use entity::CardPool;
 use game::zones::Location;
-use game::GameBoard;
 use game::Player;
 use game::Zone;
 use game::ZoneCollection;
@@ -30,7 +29,7 @@ pub enum Event {
     ConnectionLost(usize),
 }
 
-pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
+pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     assert_eq!(mode, NetworkMode::Server);
 
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
@@ -62,11 +61,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
 
     controllers.send_all(&Action::GameStart());
 
-    {
-        let mut b = game.board_lock();
-        let p = game.pool_lock();
-        b.shuffle_decks(&p);
-    }
+    game.shuffle_decks();
 
     loop {
         match recv.recv() {
@@ -79,7 +74,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
             Ok(Event::TakeAction(action, pid)) => {
                 info!("Srever got Player action: {:?}, pid = {}", action, pid);
                 let controller = &mut controllers[pid];
-                match ServerAction::perform(action, &game, controller) {
+                match ServerAction::perform(action, &mut game, controller) {
                     Ok(code) => info!("action: {:?}", code),
                     Err(e) => info!("action: {:?}", e),
                 }
@@ -99,7 +94,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
     }
 }
 
-pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
+pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     assert_eq!(mode, NetworkMode::Client);
     let mut controller = match recv.recv() {
         Ok(Event::Connect(conn)) => conn,
@@ -116,12 +111,12 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
 
             Ok(Event::TakeAction(action, pid)) => {
                 info!("Client got Player action: {:?}, pid = {}", action, pid);
-                match ClientAction::perform(action, &game, &mut controller) {
+                match ClientAction::perform(action, &mut game, &mut controller) {
                     Ok(code) => info!("action: {:?}", code),
                     Err(e) => info!("action: {:?}", e),
                 }
             }
-            Ok(Event::Connect(new_conn)) => break,
+            Ok(Event::Connect(_new_conn)) => break,
             Ok(Event::ConnectionLost(_pid)) => break,
             Ok(Event::Disconnect(code, pid)) => {
                 info!(
@@ -129,7 +124,6 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, game: Game) {
                     code, pid
                 );
             }
-            _ => {}
         }
     }
 }

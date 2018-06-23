@@ -1,108 +1,118 @@
 use entity::cardpool::CardData;
 use entity::cardpool::CardPool;
-use entity::{TagKey,TagVal};
+use entity::{TagKey, TagVal};
+use game::script::{Script, ScriptManager};
 use game::GameScript;
+use std::borrow::Cow;
+use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Arc;
-use std::sync::RwLock;
+use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
-pub type CardId = [char; 8];
+pub type CardId = u64;
 
+#[derive(Clone)]
 pub struct Card {
-    uid: u64,
-    name: String,
-    text: String,
-    tags: HashMap<TagKey, TagVal>,
-    script: Box<GameScript>,
+    inner: Rc<Inner<'static>>,
 }
-
-impl Clone for Card {
-    fn clone(&self) -> Card {
-        Card {
-            uid: self.uid,
-            name: self.name.clone(),
-            text: self.text.clone(),
-            tags: self.tags.clone(),
-            script: self.script.box_clone(),
-        }
-    }
+struct Inner<'a> {
+    uid: CardId,
+    name: RefCell<String>,
+    text: RefCell<String>,
+    tags: RefCell<HashMap<TagKey, TagVal>>,
+    script: Cow<'a, Script>,
 }
 
 impl fmt::Debug for Card {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Card {{ uid: {}, name: {}, tags.len(): {}}}", self.uid, self.name, self.tags.len())
+        write!(
+            f,
+            "Card {{ uid: {}, name: {}, tags.len(): {}}}",
+            self.uid(),
+            self.name(),
+            self.tags().len()
+        )
     }
 }
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}#{:04} ({} tags)", self.name, self.uid, self.tags.len())
+        write!(
+            f,
+            "{}#{:04} ({} tags)",
+            self.name(),
+            self.uid(),
+            self.tags().len()
+        )
     }
 }
 
 impl Card {
-    pub fn new(uid: u64, name: &str, text: &str, script: Box<GameScript>) -> Card
-    {
+    pub fn new(uid: CardId, name: &str, text: &str, script: Cow<'static, Script>) -> Card {
         Card {
-            uid,
-            name: String::from(name),
-            text: String::from(text),
-            tags: HashMap::new(),
-            script: script,
+            inner: Rc::new(Inner {
+                uid,
+                name: RefCell::new(String::from(name)),
+                text: RefCell::new(String::from(text)),
+                tags: RefCell::new(HashMap::new()),
+                script: script,
+            }),
         }
     }
     /// Creates a blank card with given id and name.
-    pub fn from_string(uid: u64, name: &str, text: &str) -> Card {
-        Card::new(uid,name,text,Box::new(()))
+    pub fn from_string(uid: CardId, name: &str, text: &str) -> Card {
+        Card::new(uid, name, text, Cow::Owned(Script::new(())))
     }
     /// Creates a known card using data from the cardpool.
-    pub fn from_pool(uid: u64, data: &CardData) -> Card {
+    pub fn from_pool(uid: CardId, data: &CardData) -> Card {
         Card {
-            uid,
-            name: String::from(data.name()),
-            text: String::from(data.text()),
-            tags: data.clone_tags(),
-            script: Box::new(()),
+            inner: Rc::new(Inner {
+                uid,
+                name: RefCell::new(String::from(data.name())),
+                text: RefCell::new(String::from(data.text())),
+                tags: RefCell::new(data.clone_tags()),
+                script: Cow::Borrowed(ScriptManager::get(data.script())),
+            }),
         }
     }
 
     #[inline]
     pub fn uid(&self) -> u64 {
-        self.uid
+        self.inner.uid
     }
     #[inline]
-    pub fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> Ref<String> {
+        self.inner.name.borrow()
     }
     #[inline]
-    pub fn text(&self) -> &str {
-        &self.text
+    pub fn text(&self) -> Ref<String> {
+        self.inner.text.borrow()
     }
     #[inline]
-    pub fn unsafe_tags(&self) -> &HashMap<TagKey, TagVal> {
-        &self.tags
+    pub fn tags(&self) -> Ref<HashMap<TagKey, TagVal>> {
+        self.inner.tags.borrow()
     }
     #[inline]
-    pub fn unsafe_tags_mut(&mut self) -> &mut HashMap<TagKey, TagVal> {
-        &mut self.tags
+    pub fn tags_mut(&mut self) -> RefMut<HashMap<TagKey, TagVal>> {
+        self.inner.tags.borrow_mut()
     }
     #[inline]
     pub fn insert_tag(&mut self, key: TagKey, val: TagVal) -> Option<TagVal> {
-        self.tags.insert(key, val)
+        self.tags_mut().insert(key, val)
     }
     #[inline]
     pub fn remove_tag(&mut self, key: &TagKey) -> Option<TagVal> {
-        self.tags.remove(key)
+        self.tags_mut().remove(key)
     }
 
-    pub fn get_tag(&self, key: &TagKey) -> &TagVal {
-        match self.tags.get(key) {
-            Some(x) => x,
-            None => &TagVal::None,
+    pub fn get_tag(&self, key: &TagKey) -> TagVal {
+        match self.tags().get(key) {
+            Some(x) => x.clone(),
+            None => TagVal::None,
         }
     }
     pub fn set_tag(&mut self, key: TagKey, val: TagVal) -> TagVal {
-        match self.tags.insert(key, val) {
+        match self.tags_mut().insert(key, val) {
             Some(x) => x,
             None => TagVal::None,
         }
@@ -115,7 +125,7 @@ impl Card {
         self.set_tag(TagKey::Cost, TagVal::from(v)).as_i32()
     }
 
-    pub fn script(&mut self) -> &mut Box<GameScript> {
-        &mut self.script
+    pub fn script(&self) -> &Script {
+        &self.inner.script
     }
 }

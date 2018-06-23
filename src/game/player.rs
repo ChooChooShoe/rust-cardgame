@@ -51,18 +51,15 @@ impl Player {
         &mut self.zones
     }
 
-    pub fn set_deck(&mut self, deck: Deck, pool: &CardPool, start_netid: u64) -> u64 {
-        let mut id = start_netid;
-
+    // Sets the players starting deck and fills, return the old startng deck if one exists.
+    pub fn set_deck(&mut self, deck: Deck) {
+        let zone = self.zones.get_mut(ZoneName::Deck);
         for entry in deck.cards_for_zone(ZoneName::Deck) {
-            let zone = self.zones.get_mut(ZoneName::Deck);
             for _ in 0..entry.count() {
-                zone.insert_at(Location::Default, pool.make_card(id, entry.card()));
-                id += 1;
+                zone.insert_at(Location::Default, CardPool::make_card(entry.card()));
             }
         }
         self.deck = Some(deck);
-        id
     }
 
     pub fn draw_x_cards(&mut self, x: usize) {

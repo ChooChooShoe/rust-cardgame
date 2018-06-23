@@ -1,7 +1,6 @@
 use entity::CardPool;
 use game::core::{self, Event};
 use game::Game;
-use game::GameBoard;
 use game::{Action, ActionError, OkCode};
 use net::settings::ServerConfig;
 use net::NetworkMode;
@@ -19,15 +18,14 @@ use ws::{
     Response, Result,
 };
 
-pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
+pub fn listen<A: ToSocketAddrs>(ip: A) {
     let settings = ServerConfig::from_disk().into();
     let (send, recv) = channel();
-    let h_game = game.clone();
-    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Server, h_game));
+    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Server, Game::new(2)));
 
     let factory = ServerFactory {
         sender: send,
-        game,
+        max_players: 2,
         next_player_id: 0,
     };
     let ws = Builder::new()
@@ -41,14 +39,14 @@ pub fn listen<A: ToSocketAddrs>(ip: A, game: Game) {
 }
 struct ServerFactory {
     sender: TSender<Event>,
-    game: Game,
+    max_players: usize,
     next_player_id: usize,
 }
 impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        if self.next_player_id < self.game.max_players() {
+        if self.next_player_id < self.max_players {
             let ret =
                 ServerHandle::new(out, self.sender.clone(), self.next_player_id, Role::Player);
             self.next_player_id += 1;
@@ -248,7 +246,7 @@ impl Handler for ServerHandle {
     }
 
     #[inline]
-    fn on_response(&mut self, res: &Response) -> Result<()> {
+    fn on_response(&mut self, _res: &Response) -> Result<()> {
         info!("ServerHandle received response. This should not happen!");
         Ok(())
     }

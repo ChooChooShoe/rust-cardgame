@@ -15,13 +15,12 @@ use player::controller::WsNetController;
 use std::error::Error as StdError;
 use url;
 
-pub fn connect<U: Borrow<str>>(url: U, game: Game) {
+pub fn connect<U: Borrow<str>>(url: U) {
     let (send,recv) = channel();
-    let h_game = game.clone();
-    let thread_handle = thread::spawn(move || core::run_client(recv, NetworkMode::Client, h_game));
+    let thread_handle = thread::spawn(move || core::run_client(recv, NetworkMode::Client, Game::new(2)));
 
     ws::connect(url, |out: WsSender| {
-        Client::new(out, game.clone(), send.clone())
+        Client::new(out, send.clone())
     }).expect("Couldn't begin connection to remote server and/or create a local client");
 
     info!("Waiting for the game client thread to close.");
@@ -30,16 +29,14 @@ pub fn connect<U: Borrow<str>>(url: U, game: Game) {
 
 pub struct Client {
     ws_out: WsSender,
-    game: Game,
     thread_out: TSender<Event>,
     player_index: Option<usize>
 }
 
 impl Client {
-    fn new(out: WsSender, game: Game, thread_out: TSender<Event>) -> Client {
+    fn new(out: WsSender, thread_out: TSender<Event>) -> Client {
         Client {
             ws_out: out,
-            game,
             thread_out,
             player_index: None,
         }

@@ -1,6 +1,7 @@
 use entity::Card;
 use game::Player;
 use std::collections::HashMap;
+use game::script::GameScript;
 
 pub enum Trigger<'a> {
     OnCardDrawn(&'a mut Player, &'a mut Card),
