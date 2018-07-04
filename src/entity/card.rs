@@ -1,5 +1,4 @@
-use entity::cardpool::CardData;
-use entity::cardpool::CardPool;
+use entity::cardpool::PooledCardData;
 use entity::{TagKey, TagVal};
 use game::script::{Script, ScriptManager};
 use game::GameScript;
@@ -21,7 +20,7 @@ struct Inner<'a> {
     name: RefCell<String>,
     text: RefCell<String>,
     tags: RefCell<HashMap<TagKey, TagVal>>,
-    script: Cow<'a, Script>,
+    script: RefCell<Cow<'a, Script>>,
 }
 
 impl fmt::Debug for Card {
@@ -55,7 +54,7 @@ impl Card {
                 name: RefCell::new(String::from(name)),
                 text: RefCell::new(String::from(text)),
                 tags: RefCell::new(HashMap::new()),
-                script: script,
+                script: RefCell::new(script),
             }),
         }
     }
@@ -64,14 +63,14 @@ impl Card {
         Card::new(uid, name, text, Cow::Owned(Script::new(())))
     }
     /// Creates a known card using data from the cardpool.
-    pub fn from_pool(uid: CardId, data: &CardData) -> Card {
+    pub fn from_pool(uid: CardId, data: &PooledCardData) -> Card {
         Card {
             inner: Rc::new(Inner {
                 uid,
                 name: RefCell::new(String::from(data.name())),
                 text: RefCell::new(String::from(data.text())),
                 tags: RefCell::new(data.clone_tags()),
-                script: Cow::Borrowed(ScriptManager::get(data.script())),
+                script: RefCell::new(Cow::Borrowed(ScriptManager::get(data.script()))),
             }),
         }
     }
@@ -125,7 +124,10 @@ impl Card {
         self.set_tag(TagKey::Cost, TagVal::from(v)).as_i32()
     }
 
-    pub fn script(&self) -> &Script {
-        &self.inner.script
+    pub fn script(&self) -> Ref<Script> {
+        self.inner.script.borrow()
+    }
+    pub fn script_mut(&self) -> RefMut<Script> {
+        self.inner.script.borrow_mut().to_mut()
     }
 }

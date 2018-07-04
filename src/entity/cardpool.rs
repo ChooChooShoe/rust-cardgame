@@ -12,15 +12,15 @@ use std::sync::Mutex;
 
 /// This is all the data needed to create a card
 #[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct CardData {
+pub struct PooledCardData {
     name: String,
     text: String,
     script: String,
     tags: HashMap<TagKey, TagVal>,
 }
-impl CardData {
-    pub fn new(name: &str) -> CardData {
-        CardData {
+impl PooledCardData {
+    pub fn new(name: &str) -> PooledCardData {
+        PooledCardData {
             name: String::from(name),
             text: String::new(),
             script: String::from("none"),
@@ -55,7 +55,7 @@ lazy_static! {
     });
 }
 pub struct CardPool {
-    all_cards: HashMap<String, CardData>,
+    all_cards: HashMap<String, PooledCardData>,
     last_instance_id: u64,
 }
 
@@ -97,7 +97,7 @@ impl CardPool {
 
     pub fn from_disk() -> io::Result<CardPool> {
         let file = File::open("./output/cards_out.json")?;
-        let in_data: HashMap<String, CardData> = serde_json::from_reader(file)?;
+        let in_data: HashMap<String, PooledCardData> = serde_json::from_reader(file)?;
         Ok(CardPool {
             all_cards: in_data,
             last_instance_id: 0,
@@ -116,7 +116,7 @@ impl CardPool {
             tags.insert(TagKey::Damage, TagVal::None);
             pool.all_cards.insert(
                 format!("GEN{:03}", 10000 + i),
-                CardData {
+                PooledCardData {
                     name: format!("Card #{:03}", i),
                     text: format!("No Text"),
                     script: String::from("none"),

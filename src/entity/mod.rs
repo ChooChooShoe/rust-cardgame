@@ -9,6 +9,5 @@ pub use self::trigger::{Dispatch,Trigger};
 pub use self::tags::{TagKey,TagVal};
 pub use self::card::Card;
 pub use self::cardpool::CardPool;
-pub use self::cardpool::CardData;
 pub use self::hero::Hero;
 pub use self::weapon::HeroicWeapon;
