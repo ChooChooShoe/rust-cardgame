@@ -73,10 +73,15 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
 
             Ok(Event::TakeAction(action, pid)) => {
                 info!("Srever got Player action: {:?}, pid = {}", action, pid);
+                game.queue_action(action);
                 let controller = &mut controllers[pid];
+                //TODO all actions in queue are performed with this controller
+                //TODO watch for infinit loops. 
+                while let Some(action) = game.action_queue.pop_front()  {
                 match ServerAction::perform(action, &mut game, controller) {
                     Ok(code) => info!("action: {:?}", code),
                     Err(e) => info!("action: {:?}", e),
+                }
                 }
             }
             Ok(Event::Connect(connection)) => {

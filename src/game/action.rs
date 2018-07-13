@@ -36,6 +36,9 @@ pub enum Action {
     MuliginEnd(),
     // from server/client
     MuliginResult { swap: bool },
+
+    // Action from other actions
+    StartNextTurn()
 }
 pub trait ServerAction {
     fn perform(self, game: &mut Game, client: &mut Controller) -> Result;
@@ -51,14 +54,22 @@ impl ServerAction for Action {
         match self {
             Action::EndTurn(p) => {
                 game.player_mut(p).draw_x_cards(1);
+                game.queue_action(Action::StartNextTurn());
                 Ok(OkCode::Nothing)
             }
             Action::DrawCardAnon(pid, amount) => {
                 game.player_mut(pid).draw_x_cards(amount);
+                game.queue_action(Action::EndTurn(0));
                 Ok(OkCode::Nothing)
             }
             Action::SetDeck(_pid, _deck) => {
                 //game.board_lock().player_mut(pid).set_deck(deck);
+                Ok(OkCode::Nothing)
+            }
+            Action::StartNextTurn() => {
+                info!("Starting Turn");
+                //TODO not loop forever.
+                //game.queue_action(Action::EndTurn(0));
                 Ok(OkCode::Nothing)
             }
             Action::GameStart() => Err(Error::NotSupported),

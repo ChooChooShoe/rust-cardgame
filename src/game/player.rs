@@ -67,13 +67,12 @@ impl Player {
 
         let drawn_cards = self.zones.deck.remove_x_at(x, Location::Top);
 
-        //TODO on card drawn event
         for c in drawn_cards {
             match c {
                 Some(mut card) => {
-                    Dispatch::broadcast(Trigger::OnCardDrawn(self, &mut card));
-                    let mut card_moved = self.zones.hand.insert_at(Location::Top, card);
-                    Dispatch::broadcast(Trigger::AfterCardDrawn(&mut card_moved));
+                    card.on_card_drawn(self);
+                    self.zones.hand.insert_at(Location::Top, card);
+                    //card_moved.after_card_drawn(self);
                 }
                 None => {
                     Dispatch::broadcast(Trigger::OnCardDrawFail(self));

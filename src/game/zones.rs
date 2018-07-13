@@ -1,9 +1,4 @@
 use entity::Card;
-use std::cell::RefCell;
-use std::cmp;
-use std::collections::HashMap;
-use std::fmt;
-use std::rc::Rc;
 
 const DEF_BANISHED_SIZE: usize = 0;
 const DEF_BATTLEFIELD_SIZE: usize = 5;
@@ -30,7 +25,7 @@ pub enum ZoneName {
 }
 pub trait Zone<T> {
     // Inserts value at this location
-    fn insert_at(&mut self, location: Location, element: T) -> &mut Card;
+    fn insert_at(&mut self, location: Location, element: T) -> &mut T;
     fn insert_all_at(&mut self, location: Location, element: Vec<T>);
     // Removes value at this location and return it.
     fn remove_at(&mut self, location: Location) -> Option<T>;
@@ -39,14 +34,17 @@ pub trait Zone<T> {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Location {
+    /// The location is chosen by the zone. 
     Default,
     /// Top of deck, same as Index(len()) or pop()/push()
     Top,
     /// Bottom of deck, same as Index(0)
     Bottom,
-    Center,
+    /// Insert at top then suffle. (only for Deck) 
+    Shuffle,
+    /// Insert at or draw from a random location, no suffle.
     Random,
-    /// Indexes from bottom (0) to top (len()). Will never panic.
+    /// Indexes from bottom (0) to top (len()). If usize > len() wil not panic and push to the top.
     Index(usize),
 }
 
@@ -77,11 +75,11 @@ impl Zone<Card> for Vec<Card> {
                 self.insert(0, element);
                 self.first_mut().unwrap()
             }
-            Location::Center => {
+            Location::Random => {
                 self.push(element);
                 self.last_mut().unwrap()
             }
-            Location::Random => {
+            Location::Shuffle => {
                 self.push(element);
                 self.last_mut().unwrap()
             }
@@ -104,7 +102,7 @@ impl Zone<Card> for Vec<Card> {
                     Some(self.remove(0))
                 }
             }
-            Location::Center => self.pop(),
+            Location::Shuffle => self.pop(),
             Location::Random => self.pop(),
             Location::Index(index) => {
                 if index >= self.len() {

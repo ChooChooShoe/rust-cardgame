@@ -2,6 +2,7 @@ use entity::Card;
 use game::Player;
 use std::collections::HashMap;
 use game::script::GameScript;
+use std::fmt;
 
 pub enum Trigger<'a> {
     OnCardDrawn(&'a mut Player, &'a mut Card),
@@ -11,6 +12,20 @@ pub enum Trigger<'a> {
     OnTurnStart(),
     OnTurnEnd(),
     OnBetweenTurns(),
+}
+
+impl<'a> fmt::Debug for Trigger<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Trigger::OnCardDrawn(_,_) => write!(f, "Trigger::OnCardDrawn"),
+            Trigger::AfterCardDrawn(_) => write!(f, "Trigger::OnCardDrawn"),
+            Trigger::OnCardDrawFail(_) => write!(f, "Trigger::OnCardDrawFail"),
+            Trigger::OnPlayCard(_,_,_) => write!(f, "Trigger::OnPlayCard"),
+            Trigger::OnTurnStart() => write!(f, "Trigger::OnTurnStart"),
+            Trigger::OnTurnEnd() => write!(f, "Trigger::OnTurnEnd"),
+            Trigger::OnBetweenTurns() => write!(f, "Trigger::OnBetweenTurns"),
+        }
+    }
 }
 
 impl<'a> Trigger<'a> {
@@ -35,9 +50,9 @@ impl<'a> Trigger<'a> {
     #[inline]
     fn pre_broadcast(&mut self) {
         match self {
-            Trigger::OnCardDrawn(_player, card) => card.script().on_event(),
-            Trigger::AfterCardDrawn(card) => card.script().on_event(),
-            Trigger::OnPlayCard(_player, card, _) => card.script().on_event(),
+            //Trigger::OnCardDrawn(_player, card) => card.script().on_event(),
+            //Trigger::AfterCardDrawn(card) => card.script().on_event(),
+            //Trigger::OnPlayCard(_player, card, _) => card.script().on_event(),
             _ => (),
         }
     }
@@ -76,7 +91,7 @@ impl Dispatch {
     }
 
     pub fn broadcast(mut trigger: Trigger) {
-        info!("Broadcast Trigger!");
+        info!("Broadcasting {:?}", trigger);
         trigger.pre_broadcast();
         if trigger.cancelable() {
             for x in INSTANCE.read().unwrap().trigger_callbacks.iter() {

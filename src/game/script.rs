@@ -14,10 +14,10 @@ lazy_static! {
 pub struct ScriptManager;
 
 impl ScriptManager {
-    pub fn get(script_id: &str) -> &'static Script {
+    pub fn get(script_id: &str) -> Script {
         match INSTANCE.get(script_id) {
-            Some(s) => s,
-            None => &Script::None,
+            Some(s) => s.clone(),
+            None => Script::None,
         }
     }
 }

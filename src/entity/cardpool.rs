@@ -1,4 +1,5 @@
 use entity::card::{Card, CardId};
+use game::script::Script;
 use entity::{TagKey, TagVal};
 use serde_json;
 use std::borrow::Cow;
@@ -66,7 +67,12 @@ impl CardPool {
         let pool = INSTANCE.lock().unwrap();
         match pool.all_cards.get(name) {
             Some(s) => Card::from_pool(id, s),
-            None => Card::from_string(id, "Unknown Card", &format!("No card named '{}'", name)),
+            None => Card::new(
+                id,
+                "Unknown Card",
+                &format!("No card named '{}'", name),
+                Script::None,
+            ),
         }
     }
     /// Makes a Card from the shared name or generates an 'Unknown Card' if name is not known.
@@ -75,10 +81,11 @@ impl CardPool {
         pool.last_instance_id += 1;
         match pool.all_cards.get(name) {
             Some(s) => Card::from_pool(pool.last_instance_id, s),
-            None => Card::from_string(
+            None => Card::new(
                 pool.last_instance_id,
                 "Unknown Card",
                 &format!("No card named '{}'", name),
+                Script::None,
             ),
         }
     }

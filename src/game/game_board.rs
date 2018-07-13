@@ -1,3 +1,4 @@
+use game::action::Action;
 use entity::cardpool::CardPool;
 use entity::trigger::Dispatch;
 use entity::trigger::Trigger;
@@ -11,11 +12,13 @@ use game::Zone;
 use net::Networked;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 
 pub struct Game {
     pub players: Vec<Player>,
     active_player_pidx: usize,
     battlefield: Vec<Card>,
+    pub action_queue: VecDeque<Action>,
 }
 
 impl Game {
@@ -28,6 +31,7 @@ impl Game {
             players,
             active_player_pidx: 0,
             battlefield: Vec::new(),
+            action_queue: VecDeque::new(),
         }
     }
     pub fn player_count(&self) -> usize {
@@ -92,5 +96,13 @@ impl Game {
     pub fn run_mulligan(&mut self) {
         self.player_mut(0).draw_x_cards(5);
         self.player_mut(1).draw_x_cards(5);
+    }
+
+    pub fn queue_action(&mut self, action: Action) {
+        self.action_queue.push_back(action)
+    }
+
+    pub fn is_action_queue_empty(&self) -> bool {
+        self.action_queue.is_empty()
     }
 }
