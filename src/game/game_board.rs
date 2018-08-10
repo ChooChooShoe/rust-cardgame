@@ -4,7 +4,7 @@ use entity::trigger::Dispatch;
 use entity::trigger::Trigger;
 use entity::Card;
 use game::ZoneCollection;
-use player::Controller;
+use net::Connection;
 use std::collections::HashMap;
 //use tags::*;
 use game::Player;

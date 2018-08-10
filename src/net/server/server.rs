@@ -5,7 +5,6 @@ use game::Game;
 use game::{Action, ActionError, OkCode};
 use net::settings::ServerConfig;
 use net::{Command,NetworkMode};
-use player::controller::WsNetController;
 use std::error::Error as StdError;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
@@ -40,8 +39,8 @@ pub fn listen<A: ToSocketAddrs>(ip: A) {
 }
 struct ServerFactory {
     sender: TSender<Event>,
-    max_players: i32,
-    next_player_id: i32,
+    max_players: usize,
+    next_player_id: usize,
 }
 impl Factory for ServerFactory {
     type Handler = ServerHandle;
@@ -63,11 +62,11 @@ impl Factory for ServerFactory {
     }
     fn connection_lost(&mut self, handle: ServerHandle) {
         warn!("Connection lost for pid {}", handle.player_id());
-        self.sender.send(Event::ConnectionLost(handle.player_id() as usize)).unwrap_or(());
+        self.sender.send(Event::CloseConnection(handle.player_id())).unwrap_or(());
     }
     fn on_shutdown(&mut self) {
         info!("ServerFactory received WebSocket shutdown request.");
-        self.sender.send(Event::OnShutdown()).unwrap_or(());
+        self.sender.send(Event::StopAndExit()).unwrap_or(());
     }
 }
 

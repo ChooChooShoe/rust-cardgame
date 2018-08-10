@@ -4,7 +4,7 @@ use game::Player;
 use game::Zone;
 use game::ZoneCollection;
 use game::{MAX_PLAYER_COUNT, MAX_TURNS};
-use player::controller::{Controller,ControllerCollection};
+use net::{Connection,ConnectionVec};
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, RecvError, RecvTimeoutError, TryRecvError};
@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use utils::timer::Timer;
 
 use entity::{Dispatch, Trigger};
-use game::action::{Action,ClientAction,ServerAction};
+use game::action::{Action, ClientAction, ServerAction};
 use game::Game;
 use net::NetworkMode;
 use vecmap::VecMap;
@@ -21,35 +21,34 @@ use ws::{CloseCode, Error as WsError, Sender as WsSender};
 
 // Message from clients to game loop.
 pub enum Event {
-    Connect(Controller),
-    TakeAction(Action, usize),
-    Disconnect(CloseCode, usize),
-    WsError(WsError, usize),
-    OnShutdown(),
-    ConnectionLost(usize),
+    OpenConnection(usize, Connection),
+    CloseConnection(usize),
+    StartGame(),
+    StopAndExit(),
+    OnPlayerAction(usize, Action),
 }
 
 pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
-    assert_eq!(mode, NetworkMode::Server);
+    //assert_eq!(mode, NetworkMode::Server);
 
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
 
-    let mut controllers = Vec::new();
+    let mut connections = Vec::new();
     let mut active_player = 0;
     let mut turn_count = 0;
     let mut current_step = Step::PlayersConnecting;
 
     info!("Waiting for connections");
     loop {
-        // Wait for all connections.
+        // Loops waiting for 0 or more Event::AddPlayers(_,_) until 1 Event::StartGame().
         match recv.recv() {
-            Ok(Event::Connect(controller)) => {
-                info!("Core got connection");
-                controllers.push(controller);
-                if controllers.len() == game.max_players() {
-                    break;
-                }
+            Ok(Event::OpenConnection(id, connection)) => {
+                info!("Core got connection for player #{}", id);
+                connections.add_player(id, connection);
             }
+            Ok(Event::CloseConnection(id)) => connections.remove_player(id),
+            Ok(Event::StartGame()) => break,
+            Ok(Event::StopAndExit()) => return,
             Ok(_) => warn!("All players have not connected yet! Event can not be handled."),
             Err(RecvError) => return,
         }
@@ -59,41 +58,33 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     info!("Game Started");
     let _game_start_time = Instant::now();
 
-    controllers.send_all(Action::GameStart());
+    connections.send_all(Action::GameStart());
 
     game.shuffle_decks();
 
     loop {
         match recv.recv() {
-            Ok(Event::WsError(_err, _pid)) => break,
-            Ok(Event::OnShutdown()) => break,
-            //Err(TryRecvError::Empty) => continue,
-            //Err(TryRecvError::Disconnected) => break,
-            Err(RecvError) => break,
+            Ok(Event::OpenConnection(id, connection)) => {
+                info!("Core got connection for player #{}", id);
+                connections.add_player(id, connection);
+            }
+            Ok(Event::CloseConnection(id)) => connections.remove_player(id),
+            Ok(Event::StartGame()) => break,
+            Ok(Event::StopAndExit()) => return,
+            Err(RecvError) => return,
 
-            Ok(Event::TakeAction(action, pid)) => {
-                info!("Srever got Player action: {:?}, pid = {}", action, pid);
-                game.queue_action(action);
-                let controller = &mut controllers[pid];
-                //TODO all actions in queue are performed with this controller
-                //TODO watch for infinit loops. 
-                while let Some(action) = game.action_queue.pop_front()  {
-                match ServerAction::perform(action, &mut game, controller) {
-                    Ok(code) => info!("action: {:?}", code),
-                    Err(e) => info!("action: {:?}", e),
+            Ok(Event::OnPlayerAction(player_id, action)) => {
+                info!("Server got Player action: {:?}, id = {}", action, player_id);
+                game.action_queue.push_back(action);
+                let connection = &mut connections[player_id];
+                //TODO all actions in queue are performed with this connection
+                //TODO watch for infinit loops.
+                while let Some(action) = game.action_queue.pop_front() {
+                    match ServerAction::perform(action, &mut game, connection) {
+                        Ok(code) => info!("action: {:?}", code),
+                        Err(e) => info!("action: {:?}", e),
+                    }
                 }
-                }
-            }
-            Ok(Event::Connect(connection)) => {
-                //info!("server joined: sender = {:?}, pid = {}", sender.token(), pid)
-            }
-            Ok(Event::ConnectionLost(_pid)) => break,
-            Ok(Event::Disconnect(code, pid)) => {
-                if mode == NetworkMode::Client {
-                    info!("server lost: code = {:?}, pid = {}", code, pid);
-                    break;
-                }
-                info!("connection lost: code = {:?}, pid = {}", code, pid)
             }
         }
     }
@@ -101,33 +92,42 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
 
 pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     assert_eq!(mode, NetworkMode::Client);
-    let mut controller = match recv.recv() {
-        Ok(Event::Connect(conn)) => conn,
-        _ => {
-            warn!("Client did not connect to controller");
-            return;
-        }
-    };
+    let mut connection = Connection::from_empty(0);
+    let mut client_id = 0;
+    let mut active_player = 0;
+    let mut turn_count = 0;
+    let mut current_step = Step::PlayersConnecting;
     loop {
         match recv.recv() {
-            Err(RecvError) => break,
-            Ok(Event::WsError(_err, _pid)) => break,
-            Ok(Event::OnShutdown()) => break,
-
-            Ok(Event::TakeAction(action, pid)) => {
-                info!("Client got Player action: {:?}, pid = {}", action, pid);
-                match ClientAction::perform(action, &mut game, &mut controller) {
-                    Ok(code) => info!("action: {:?}", code),
-                    Err(e) => info!("action: {:?}", e),
-                }
+            Ok(Event::OpenConnection(id, new_connection)) => {
+                client_id = id;
+                connection = new_connection;
             }
-            Ok(Event::Connect(_new_conn)) => break,
-            Ok(Event::ConnectionLost(_pid)) => break,
-            Ok(Event::Disconnect(code, pid)) => {
+            Ok(Event::CloseConnection(id)) => {
+                current_step = Step::NoConnection;
+                connection.on_connection_lost();
+            },
+            Ok(Event::StartGame()) => current_step = Step::GameStart,
+            Ok(Event::StopAndExit()) => {
+                current_step = Step::EndGame;
+                return;
+            }
+            Err(RecvError) => return,
+
+            Ok(Event::OnPlayerAction(player_id, action)) => {
                 info!(
-                    "Client lost connection to server: code = {:?}, pid = {}",
-                    code, pid
+                    "Client got Player action: {:?}, pid = {}",
+                    action, player_id
                 );
+                game.queue_action(action);
+                //TODO all actions in queue are performed with this connection
+                //TODO watch for infinit loops.
+                while let Some(action) = game.action_queue.pop_front() {
+                    match ClientAction::perform(action, &mut game, &mut connection) {
+                        Ok(code) => info!("action: {:?}", code),
+                        Err(e) => info!("action: {:?}", e),
+                    }
+                }
             }
         }
     }
@@ -141,6 +141,7 @@ enum Step {
     MuliginEnd,
     PlayerTurn(usize, u32, Phase),
     EndGame,
+    NoConnection,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,6 +163,7 @@ impl Step {
             Step::MuliginEnd => Duration::from_millis(500),
             Step::PlayerTurn(_pidx, _turn, _phase) => Duration::from_secs(2),
             Step::EndGame => Duration::from_millis(100),
+            Step::NoConnection => Duration::from_secs(30),
         }
     }
 }

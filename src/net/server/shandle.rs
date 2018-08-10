@@ -6,7 +6,7 @@ use game::{Action, ActionError, OkCode};
 use net::server::server::Role;
 use net::settings::ServerConfig;
 use net::{Command, NetworkMode};
-use player::controller::WsNetController;
+use net::Connection;
 use std::error::Error as StdError;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
@@ -23,13 +23,13 @@ use ws::{
 pub struct ServerHandle {
     ws: WsSender,
     core: TSender<Event>,
-    player_id: i32,
+    player_id: usize,
     role: Role,
     expire_timeout: Option<Timeout>,
     mulligin_timeout: Option<Timeout>,
 }
 impl ServerHandle {
-    pub fn new(ws: WsSender, core: TSender<Event>, player_id: i32, role: Role) -> ServerHandle {
+    pub fn new(ws: WsSender, core: TSender<Event>, player_id: usize, role: Role) -> ServerHandle {
         ServerHandle {
             ws,
             core,
@@ -39,7 +39,7 @@ impl ServerHandle {
             mulligin_timeout: None,
         }
     }
-    pub fn player_id(&self) -> i32 {
+    pub fn player_id(&self) -> usize {
         self.player_id
     }
 }
@@ -67,8 +67,8 @@ impl Handler for ServerHandle {
         // schedule a timeout to close the connection if there is no activity for 30 seconds.
         try!(self.ws.timeout(30_000, EXPIRE));
         // create a controller and send to thread.
-        let controller = WsNetController::new(self.player_id as usize, self.ws.clone());
-        let event = Event::Connect(controller.into());
+        let conn = Connection::from_network(self.player_id, self.ws.clone());
+        let event = Event::OpenConnection(self.player_id, conn);
         self.core.send(event).map_err(thread_err)
     }
 
@@ -77,7 +77,7 @@ impl Handler for ServerHandle {
             "Connection closing due to ({:?}) {} for player_id {}",
             code, reason, self.player_id
         );
-        let event = Event::Disconnect(code, self.player_id as usize);
+        let event = Event::CloseConnection(self.player_id as usize);
         // Try to send and ignore any error.
         self.core.send(event).unwrap_or(())
     }
@@ -88,8 +88,9 @@ impl Handler for ServerHandle {
         info!("Received command {:?}", command);
 
         match command {
-            Command::ChangePlayerId(from, to) => {
-                self.player_id = to;
+            Command::ChangePlayerId(_from, _to) => {
+                warn!("Command::ChangePlayerId is not supprted by the server.");
+                //self.player_id = to;
                 Ok(())
             }
             Command::Text(t) => {
@@ -98,7 +99,7 @@ impl Handler for ServerHandle {
             }
             Command::TakeAction(action) => {
                 info!("Received action {:?}", action);
-                let ev = Event::TakeAction(action, self.player_id as usize);
+                let ev = Event::OnPlayerAction(self.player_id as usize, action);
                 self.core.send(ev).map_err(thread_err)
             }
             _ => {
@@ -130,9 +131,8 @@ impl Handler for ServerHandle {
             }
             EXPIRE => self.ws.close(CloseCode::Away),
             MULIGIN => {
-                let event =
-                    Event::TakeAction(Action::MuliginResult { swap: false }, self.player_id as usize);
-                self.core.send(event).map_err(thread_err)
+                let ev = Event::OnPlayerAction(self.player_id as usize, Action::MuliginResult { swap: false });
+                self.core.send(ev).map_err(thread_err)
             }
             _ => Err(Error::new(
                 ErrorKind::Internal,

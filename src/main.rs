@@ -28,12 +28,10 @@ mod config;
 mod entity;
 mod game;
 mod net;
-mod player;
 mod utils;
 mod vecmap;
 
 use config::{Config,IoConfig};
-use player::Controller;
 use log::{Level,Metadata,Record};
 use entity::card::{Card};
 use entity::CardPool;

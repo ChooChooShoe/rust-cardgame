@@ -1,9 +1,8 @@
 use game::core::{self, Event};
 use game::Action;
 use game::Game;
-use net::{Command, NetworkMode};
+use net::{Command, Connection, NetworkMode};
 use net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
-use player::controller::WsNetController;
 use std::borrow::Borrow;
 use std::error::Error as StdError;
 use std::sync::mpsc::channel;
@@ -57,7 +56,7 @@ impl Handler for Client {
         let command = try!(Command::decode(&msg));
 
         match command {
-            Command::ChangePlayerId(from, to) => {
+            Command::ChangePlayerId(_from, to) => {
                 self.player_id = to;
                 Ok(())
             }
@@ -67,7 +66,7 @@ impl Handler for Client {
             }
             Command::TakeAction(action) => {
                 info!("Received action {:?}", action);
-                let ev = Event::TakeAction(action, self.player_id as usize);
+                let ev = Event::OnPlayerAction(self.player_id as usize, action);
                 self.thread_out.send(ev).map_err(thread_err)
             }
             _ => {
@@ -81,8 +80,8 @@ impl Handler for Client {
         if let Some(addr) = try!(shake.remote_addr()) {
             debug!("Connection with {} now open", addr);
         }
-        let controller = WsNetController::new(self.player_id as usize, self.ws_out.clone());
-        let ev = Event::Connect(controller.into());
+        let connection = Connection::from_network(self.player_id as usize, self.ws_out.clone());
+        let ev = Event::OpenConnection(self.player_id as usize, connection);
 
         self.thread_out.send(ev).map_err(thread_err)
     }
@@ -90,10 +89,8 @@ impl Handler for Client {
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         info!("Connection closing due to ({:?}) {}", code, reason);
 
-        if let Err(err) = self
-            .thread_out
-            .send(Event::Disconnect(code, self.player_id as usize))
-        {
+        let ev = Event::CloseConnection(self.player_id as usize);
+        if let Err(err) = self.thread_out.send(ev) {
             error!(
                 "Error: Thread channel dropped on conection close: {:?}",
                 err
@@ -163,7 +160,7 @@ impl Handler for Client {
         error!("Client Error: {:?}", err);
         if self
             .thread_out
-            .send(Event::WsError(err, self.player_id as usize))
+            .send(Event::CloseConnection(self.player_id as usize))
             .is_err()
         {
             warn!("Thread channel dropped on ws error")

@@ -1,9 +1,12 @@
 pub mod client;
 pub mod command;
 pub mod server;
+pub mod connection;
 mod settings;
 
 pub use self::command::Command;
+pub use self::connection::Connection;
+pub use self::connection::ConnectionVec;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum NetworkMode {

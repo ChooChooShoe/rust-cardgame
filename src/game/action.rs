@@ -2,7 +2,7 @@ use bincode::{deserialize, serialize, ErrorKind};
 use game::action_result::{Error, OkCode, Result};
 use game::Deck;
 use game::Game;
-use player::controller::Controller;
+use net::Connection;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
 use std::fmt;
@@ -41,16 +41,16 @@ pub enum Action {
     StartNextTurn()
 }
 pub trait ServerAction {
-    fn perform(self, game: &mut Game, client: &mut Controller) -> Result;
+    fn perform(self, game: &mut Game, client: &mut Connection) -> Result;
     fn undo(self, game: &mut Game) -> Result;
 }
 pub trait ClientAction {
-    fn perform(self, game: &mut Game, server: &mut Controller) -> Result;
+    fn perform(self, game: &mut Game, server: &mut Connection) -> Result;
     fn undo(self, game: &mut Game) -> Result;
 }
 // Code for the server when a client want to do an action
 impl ServerAction for Action {
-    fn perform(self, game: &mut Game, _client: &mut Controller) -> Result {
+    fn perform(self, game: &mut Game, _client: &mut Connection) -> Result {
         match self {
             Action::EndTurn(p) => {
                 game.player_mut(p).draw_x_cards(1);
@@ -82,7 +82,7 @@ impl ServerAction for Action {
 }
 // Code for the client when the server wants us to act.
 impl ClientAction for Action {
-    fn perform(self, _game: &mut Game, server: &mut Controller) -> Result {
+    fn perform(self, _game: &mut Game, server: &mut Connection) -> Result {
         match self {
             Action::GameStart() => {
                 server.send(Action::DrawCardAnon(0,3)).unwrap();

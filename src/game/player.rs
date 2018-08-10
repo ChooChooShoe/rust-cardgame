@@ -10,7 +10,7 @@ use game::ZoneCollection;
 use game::zones::ZoneName;
 use game::zones::{Location, Zone};
 use game::{ActionError, ActionResult, OkCode};
-use player::controller::Controller;
+use net::Connection;
 use entity::Dispatch;
 use entity::Trigger;
 
