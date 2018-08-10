@@ -1,9 +1,9 @@
 //#![feature(plugin, use_extern_macros)]
 //#![plugin(tarpc_plugins)]
 #![feature(deadline_api)]
-//#![allow(dead_code)]
+#![allow(dead_code)]
 //#![allow(unused_variables)]
-//#![allow(unused_imports)]
+#![allow(unused_imports)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -24,6 +24,7 @@ extern crate rand;
 //extern crate futures;
 //extern crate tokio_core;
 
+mod config;
 mod entity;
 mod game;
 mod net;
@@ -31,6 +32,7 @@ mod player;
 mod utils;
 mod vecmap;
 
+use config::{Config,IoConfig};
 use player::Controller;
 use log::{Level,Metadata,Record};
 use entity::card::{Card};
@@ -47,6 +49,7 @@ use std::thread;
 fn main() {
     log::set_logger(&SIMPLE_LOGGER).unwrap();
     log::set_max_level(SIMPLE_LOGGER.level.to_level_filter());
+
     
     info!("Card Game Engine");
     // info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
@@ -64,6 +67,7 @@ fn main() {
             client = true;
         }
     }
+    config::set_active(Config::load_from_disk());
 
     if client {
         //net::client::connect("ws://127.0.0.1:3012", game);

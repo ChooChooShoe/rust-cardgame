@@ -85,7 +85,7 @@ impl ClientAction for Action {
     fn perform(self, _game: &mut Game, server: &mut Controller) -> Result {
         match self {
             Action::GameStart() => {
-                server.send(&Action::DrawCardAnon(0,3)).unwrap();
+                server.send(Action::DrawCardAnon(0,3)).unwrap();
                 Ok(OkCode::Nothing)
             }
             _ => Ok(OkCode::Nothing),
@@ -96,6 +96,7 @@ impl ClientAction for Action {
     }
 }
 impl Action {
+    #[deprecated]
     pub fn encode(&self) -> StdResult<Message, WsError> {
         match self {
             Action::Text(t) => Ok(Message::Text(t.to_string())),
@@ -114,6 +115,7 @@ impl Action {
         }
     }
 
+    #[deprecated]
     pub fn decode(msg: &Message) -> StdResult<Self, WsError> {
         match msg {
             Message::Text(t) => Ok(Action::Text(t.to_string())),
@@ -127,9 +129,4 @@ impl Action {
             }),
         }
     }
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
-
 }

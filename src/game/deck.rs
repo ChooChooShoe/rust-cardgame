@@ -1,5 +1,4 @@
 use game::Player;
-use net::IntoMessage;
 use game::zones::ZoneName;
 use entity::card::CardId;
 use std::convert::{From, Into};
@@ -41,15 +40,6 @@ impl Deck {
     }
     pub fn recheck_is_valid(&self) -> bool {
         true
-    }
-}
-impl IntoMessage for Deck {
-    fn try_encode(&self) -> Result<Message> {
-        Ok(Message::Binary(serialize(&self)?))
-    }
-    fn try_decode(msg: Message) -> Result<Self> {
-        let data = msg.into_data();
-        Ok(deserialize(&data[..])?)
     }
 }
 

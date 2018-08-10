@@ -4,7 +4,6 @@ pub mod core;
 pub mod zones;
 pub mod action;
 pub mod action_result;
-pub mod command;
 pub mod deck;
 pub mod player;
 pub mod script;

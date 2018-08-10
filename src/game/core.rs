@@ -59,7 +59,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     info!("Game Started");
     let _game_start_time = Instant::now();
 
-    controllers.send_all(&Action::GameStart());
+    controllers.send_all(Action::GameStart());
 
     game.shuffle_decks();
 

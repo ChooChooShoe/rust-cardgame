@@ -2,6 +2,7 @@ use ws::Settings;
 use io::{self,ErrorKind};
 use std::fs;
 use serde_json;
+use config;
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 #[serde(default)]
@@ -41,6 +42,9 @@ impl ServerConfig {
         Ok(())
     }
     pub fn from_disk() -> Self {
+        if config::active().skip_load_server_settings {
+            return Self::default()
+        }
         match fs::File::open(SERVER_CONFIG_FILENAME) {
             Ok(reader) => match serde_json::from_reader(reader) {
                 Ok(s) => {

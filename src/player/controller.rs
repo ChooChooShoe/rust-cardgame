@@ -3,19 +3,20 @@ use game::{Zone,Player};
 use std::io;
 use ws::Sender as WsSender;
 use game::Action;
-
+use net::Command;
 
 pub trait ControllerCollection {
-    fn send_all(&mut self, action: &Action);
-    fn send(&mut self, index: usize, action: &Action);
+    fn send_all(&mut self, action: Action);
+    fn send(&mut self, index: usize, action: Action);
 }
 impl ControllerCollection for Vec<Controller> {
-    fn send_all(&mut self, action: &Action) {
+    fn send_all(&mut self, action: Action) {
+        let cmd = Command::TakeAction(action);
         for controller in self {
-            controller.send(action).unwrap_or(())
+            controller.send_command(&cmd)
         }
     }
-    fn send(&mut self, index: usize, action: &Action) {
+    fn send(&mut self, index: usize, action: Action) {
         self[index].send(action).unwrap_or(())
     }
 }
@@ -27,8 +28,12 @@ impl Controller {
     pub fn index(&self) -> usize {
         self.inner.player_index
     }
-    pub fn send(&mut self, action: &Action) -> Result<(), ()> {
+    pub fn send(&mut self, action: Action) -> Result<(), ()> {
         self.inner.send(action)
+    }
+
+    pub fn send_command(&mut self, cmd: &Command) {
+        self.inner.send_command(&cmd)
     }
 }
 
@@ -69,9 +74,14 @@ impl WsNetController {
 
         None
     }
-    pub fn send(&mut self, action: &Action) -> Result<(), ()> {
+    pub fn send(&mut self, action: Action) -> Result<(), ()> {
         // TODO make this not as bad.
-        Ok(self.ws_sender.send(action.encode().unwrap()).unwrap())
+        let cmd = Command::TakeAction(action);
+        Ok(self.ws_sender.send(cmd.encode().unwrap()).unwrap())
+    }
+
+    pub fn send_command(&mut self, cmd: &Command) {
+        self.ws_sender.send(cmd.encode().unwrap()).unwrap()
     }
 }
 impl Into<Controller> for WsNetController {
