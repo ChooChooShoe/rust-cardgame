@@ -3,6 +3,7 @@ use entity::cardpool::CardPool;
 use entity::trigger::Dispatch;
 use entity::trigger::Trigger;
 use entity::Card;
+use entity::Effect;
 use game::ZoneCollection;
 use net::Connection;
 use std::collections::HashMap;
@@ -17,6 +18,7 @@ pub struct Game {
     pub players: Vec<Player>,
     active_player_pidx: usize,
     battlefield: Vec<Card>,
+    effects: Vec<Effect>,
     pub action_queue: VecDeque<Action>,
 }
 
@@ -30,6 +32,7 @@ impl Game {
             players,
             active_player_pidx: 0,
             battlefield: Vec::new(),
+            effects: Vec::new(),
             action_queue: VecDeque::new(),
         }
     }

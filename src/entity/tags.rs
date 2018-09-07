@@ -4,8 +4,12 @@ use std::fmt;
 #[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize, Clone)]
 pub enum TagKey {
     Cost,
+    BaseCost,
     Attack,
+    BaseAttack,
     Health,
+    BaseHealth,
+    MaxHealth,
     Damage,
 }
 

@@ -125,6 +125,40 @@ impl Card {
         self.inner.borrow()
     }
 
+    pub fn get_tag(&self, key: &TagKey) -> TagVal {
+        *self.data().tags.get(key).unwrap_or(&TagVal::None)
+    }
+    pub fn set_tag(&mut self, key: TagKey, val: TagVal) -> TagVal {
+        self.data_mut().tags.insert(key,val).unwrap_or(TagVal::None)
+    }
+
+    pub fn base_attack(&self) -> i32 {
+        self.get_tag(&TagKey::BaseAttack).as_i32()
+    }
+    pub fn current_attack(&self) -> i32 {
+        self.get_tag(&TagKey::Attack).as_i32()
+    }
+
+    pub fn base_health(&self) -> i32 {
+        self.get_tag(&TagKey::BaseHealth).as_i32()
+    }
+    pub fn current_health(&self) -> i32 {
+        self.get_tag(&TagKey::Health).as_i32()
+    }
+    pub fn max_health(&self) -> i32 {
+        self.get_tag(&TagKey::MaxHealth).as_i32()
+    }
+    pub fn missing_health(&self) -> i32 {
+        self.max_health() - self.current_health()
+    }
+
+    pub fn base_cost(&self) -> i32 {
+        self.get_tag(&TagKey::BaseCost).as_i32()
+    }
+    pub fn current_cost(&self) -> i32 {
+        self.get_tag(&TagKey::Cost).as_i32()
+    }
+
     pub fn on_card_drawn(&mut self, player: &mut Player) {
         info!("on_card_drawn!");
         Dispatch::broadcast(Trigger::OnCardDrawn(player, self))
