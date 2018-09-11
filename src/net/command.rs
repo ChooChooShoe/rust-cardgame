@@ -4,6 +4,7 @@ use std::result::Result as StdResult;
 use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[deprecated]
 pub enum Command {
     Text(String),
     Unknown,
@@ -13,6 +14,7 @@ pub enum Command {
     UndoAction(Action),
 }
 
+#[deprecated]
 impl Command {
     pub fn encode(&self) -> StdResult<Message, WsError> {
         match self {

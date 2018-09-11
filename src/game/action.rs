@@ -13,6 +13,7 @@ use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Action {
     Text(String),
+    ChangePlayerId(usize,usize),
     Empty,
     Invalid,
     Error,
@@ -41,7 +42,7 @@ pub enum Action {
     StartNextTurn()
 }
 pub trait ServerAction {
-    fn perform(self, game: &mut Game, client: &mut Connection) -> Result;
+    fn perform(self, game: &mut Game, client_id: usize) -> Result;
     fn undo(self, game: &mut Game) -> Result;
 }
 pub trait ClientAction {
@@ -50,15 +51,15 @@ pub trait ClientAction {
 }
 // Code for the server when a client want to do an action
 impl ServerAction for Action {
-    fn perform(self, game: &mut Game, _client: &mut Connection) -> Result {
+    fn perform(self, game: &mut Game, _client_id: usize) -> Result {
         match self {
             Action::EndTurn(p) => {
-                game.player_mut(p).draw_x_cards(1);
+                game.players[p].draw_x_cards(1);
                 game.queue_action(Action::StartNextTurn());
                 Ok(OkCode::Nothing)
             }
             Action::DrawCardAnon(pid, amount) => {
-                game.player_mut(pid).draw_x_cards(amount);
+                game.players[pid].draw_x_cards(amount);
                 game.queue_action(Action::EndTurn(0));
                 Ok(OkCode::Nothing)
             }
@@ -85,7 +86,7 @@ impl ClientAction for Action {
     fn perform(self, _game: &mut Game, server: &mut Connection) -> Result {
         match self {
             Action::GameStart() => {
-                server.send(Action::DrawCardAnon(0,3)).unwrap();
+                server.send(&Action::DrawCardAnon(0,3)).unwrap();
                 Ok(OkCode::Nothing)
             }
             _ => Ok(OkCode::Nothing),
@@ -96,37 +97,5 @@ impl ClientAction for Action {
     }
 }
 impl Action {
-    #[deprecated]
-    pub fn encode(&self) -> StdResult<Message, WsError> {
-        match self {
-            Action::Text(t) => Ok(Message::Text(t.to_string())),
-            _ => Ok(Message::Binary(try!(serialize(&self).map_err(
-                |bincode_err| {
-                    warn!("Encoded action failed: {:?}", bincode_err);
-                    match *bincode_err {
-                        ErrorKind::Io(e) => WsError::new(WsErrorKind::Io(e), ""),
-                        ErrorKind::InvalidUtf8Encoding(e) => {
-                            WsError::new(WsErrorKind::Encoding(e), "")
-                        }
-                        _ => WsError::new(WsErrorKind::Custom(bincode_err), ""),
-                    }
-                }
-            )))),
-        }
-    }
 
-    #[deprecated]
-    pub fn decode(msg: &Message) -> StdResult<Self, WsError> {
-        match msg {
-            Message::Text(t) => Ok(Action::Text(t.to_string())),
-            Message::Binary(b) => deserialize(&b[..]).map_err(|bincode_err| {
-                warn!("Decoded invalid message: {:?}", bincode_err);
-                match *bincode_err {
-                    ErrorKind::Io(e) => WsError::new(WsErrorKind::Io(e), ""),
-                    ErrorKind::InvalidUtf8Encoding(e) => WsError::new(WsErrorKind::Encoding(e), ""),
-                    _ => WsError::new(WsErrorKind::Custom(bincode_err), ""),
-                }
-            }),
-        }
-    }
 }

@@ -1,4 +1,4 @@
-pub mod game_board;
+pub mod game_state;
 //pub mod game_loop;
 pub mod core;
 pub mod zones;
@@ -10,7 +10,7 @@ pub mod script;
 
 pub use self::script::GameScript;
 pub use self::player::Player;
-pub use self::game_board::Game;
+pub use self::game_state::Game;
 pub use self::zones::ZoneCollection;
 pub use self::zones::Zone;
 pub use self::deck::{Deck,Entry as DeckEntry};

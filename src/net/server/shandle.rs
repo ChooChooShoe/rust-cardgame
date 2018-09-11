@@ -1,23 +1,19 @@
-use net::{VERSION_HEADER,PID_HEADER,PROTOCOL};
 use entity::CardPool;
 use game::core::{self, Event};
-use game::Game;
-use game::{Action, ActionError, OkCode};
+use game::{Action, ActionError, Game, OkCode};
 use net::server::server::Role;
 use net::settings::ServerConfig;
-use net::{Command, NetworkMode};
-use net::Connection;
+use net::{Codec, Connection, NetworkMode};
+use net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
 use std::error::Error as StdError;
 use std::net::ToSocketAddrs;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Sender as TSender;
+use std::sync::mpsc::{channel, Sender as TSender};
 use std::thread;
 use ws::util::Timeout;
 use ws::util::Token;
-use ws::Sender as WsSender;
 use ws::{
     Builder, CloseCode, Error, ErrorKind, Factory, Frame, Handler, Handshake, Message, Request,
-    Response, Result,
+    Response, Result, Sender as WsSender,
 };
 /// Represents one player's connection to us (the ServerHandle)
 pub struct ServerHandle {
@@ -54,6 +50,8 @@ const PING: Token = Token(1);
 const EXPIRE: Token = Token(2);
 const MULIGIN: Token = Token(3);
 
+const GAMESTART: Token = Token(12);
+
 impl Handler for ServerHandle {
     /// Called when a request to shutdown all connections has been received.
     #[inline]
@@ -66,10 +64,24 @@ impl Handler for ServerHandle {
         try!(self.ws.timeout(5_000, PING));
         // schedule a timeout to close the connection if there is no activity for 30 seconds.
         try!(self.ws.timeout(30_000, EXPIRE));
-        // create a controller and send to thread.
-        let conn = Connection::from_network(self.player_id, self.ws.clone());
-        let event = Event::OpenConnection(self.player_id, conn);
-        self.core.send(event).map_err(thread_err)
+
+        match self.role {
+            Role::Player(is_final) => {
+                if is_final {
+                    // timeout for 200 ms to start the game.
+                    try!(self.ws.timeout(0_200, GAMESTART));
+                }
+                // create a controller and send to thread.
+                let conn = Connection::from_network(self.player_id, self.ws.clone());
+                let event = Event::OpenConnection(self.player_id, conn);
+                self.core.send(event).map_err(thread_err)
+            }
+            Role::GameFull => self.ws.close(CloseCode::Normal),
+            Role::Spectator => Err(Error::new(
+                ErrorKind::Internal,
+                "Spectator is not implemented",
+            )),
+        }
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
@@ -84,27 +96,28 @@ impl Handler for ServerHandle {
 
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        let command = try!(Command::decode(&msg));
-        info!("Received command {:?}", command);
+        let action = Action::decode(&msg)?;
+        info!("Received command {:?}", action);
 
-        match command {
-            Command::ChangePlayerId(_from, _to) => {
-                warn!("Command::ChangePlayerId is not supprted by the server.");
+        match action {
+            Action::ChangePlayerId(_from, _to) => {
+                warn!("Command::ChangePlayerId is not implemented by the server.");
                 //self.player_id = to;
                 Ok(())
             }
-            Command::Text(t) => {
-                info!("Received chat: {}", t);
-                Ok(())
-            }
-            Command::TakeAction(action) => {
-                info!("Received action {:?}", action);
-                let ev = Event::OnPlayerAction(self.player_id as usize, action);
-                self.core.send(ev).map_err(thread_err)
+            Action::Text(t) => {
+                info!("Server recived chat from player #{}: {}", self.player_id, t);
+                self.ws
+                    .send(Action::Text(String::from("You know im a computer, right?")))
             }
             _ => {
-                warn!("Unsupported command recived. Ignoring.");
-                Ok(())
+                // Any other action is sent to core thread.
+                info!(
+                    "Server received general action {:?} from player #{}",
+                    action, self.player_id
+                );
+                let ev = Event::OnPlayerAction(self.player_id as usize, action);
+                self.core.send(ev).map_err(thread_err)
             }
         }
     }
@@ -131,8 +144,14 @@ impl Handler for ServerHandle {
             }
             EXPIRE => self.ws.close(CloseCode::Away),
             MULIGIN => {
-                let ev = Event::OnPlayerAction(self.player_id as usize, Action::MuliginResult { swap: false });
+                let ev = Event::OnPlayerAction(
+                    self.player_id as usize,
+                    Action::MuliginResult { swap: false },
+                );
                 self.core.send(ev).map_err(thread_err)
+            }
+            GAMESTART => {
+                self.core.send(Event::AllPlayersConnected()).map_err(thread_err)
             }
             _ => Err(Error::new(
                 ErrorKind::Internal,
@@ -177,14 +196,10 @@ impl Handler for ServerHandle {
 
         if req.protocols()?.iter().any(|&s| s.contains(PROTOCOL)) {
             res.set_protocol(PROTOCOL);
-            res.headers_mut().push((
-                PID_HEADER.into(),
-                self.player_id.to_string().into_bytes(),
-            ));
-            res.headers_mut().push((
-                VERSION_HEADER.into(),
-                "0.0.1".into(),
-            ));
+            res.headers_mut()
+                .push((PID_HEADER.into(), self.player_id.to_string().into_bytes()));
+            res.headers_mut()
+                .push((VERSION_HEADER.into(), "0.0.1".into()));
             Ok(res)
         } else {
             Err(Error::new(

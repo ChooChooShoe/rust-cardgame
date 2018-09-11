@@ -1,50 +1,9 @@
 use game::Action;
 use game::{Player, Zone};
-use net::Command;
+use net::Codec;
 use std::io;
 use std::time::Instant;
 use ws::Sender as WsSender;
-
-pub trait ConnectionVec {
-    fn send_all(&mut self, action: Action);
-    fn send(&mut self, player_id: usize, action: Action);
-    fn add_player(&mut self, player_id: usize, con: Connection);
-    fn remove_player(&mut self, player_id: usize);
-}
-impl ConnectionVec for Vec<Connection> {
-
-    fn add_player(&mut self, player_id: usize, con: Connection) {
-        if player_id < self.len() {
-            // player_id is before in the vec, overwride other player.
-            self[player_id] = con
-        } else {
-            // player_id is out of bounds, add some empty players as padding.
-            let additional = player_id - self.len();
-            self.reserve(additional + 1);
-            let l = self.len();
-            for i in 0..additional {
-                self.push(Connection::from_empty(l + i));
-            }
-            self.push(con)
-        }
-    }
-    fn remove_player(&mut self, player_id: usize) {
-        if player_id < self.len() {
-            self[player_id] = Connection::from_empty(player_id)
-        }
-    }
-
-
-    fn send_all(&mut self, action: Action) {
-        let cmd = Command::TakeAction(action);
-        for connection in self {
-            connection.send_command(&cmd)
-        }
-    }
-    fn send(&mut self, player_id: usize, action: Action) {
-        self[player_id].send(action).unwrap_or(());
-    }
-}
 
 pub struct Connection {
     player_id: usize,
@@ -70,14 +29,11 @@ impl Connection {
         self.player_id = player_id
     }
 
-    pub fn send(&mut self, action: Action) -> Result<(), ()> {
-        self.inner.send(action)
+    pub fn send(&mut self, action: &Action) -> Result<(), ()> {
+        self.inner.send(action);
+        Ok(())
     }
-
-    pub fn send_command(&mut self, cmd: &Command) {
-        self.inner.send_command(&cmd)
-    }
-    pub fn on_connection_lost(&mut self) {
+    pub fn on_close_connection(&mut self) {
         self.inner = Inner::EmptyPlayer();
     }
 }
@@ -113,18 +69,10 @@ impl Inner {
 
         None
     }
-    pub fn send(&mut self, action: Action) -> Result<(), ()> {
+    pub fn send(&mut self, action: &Action) {
         // TODO make this not as bad.
-        let cmd = Command::TakeAction(action);
-        self.send_command(&cmd);
-        Ok(())
-    }
-
-    pub fn send_command(&mut self, cmd: &Command) {
         match self {
-            Inner::WebSocetPlayer(sender) => {
-                sender.send(cmd.encode().unwrap()).unwrap()
-            }
+            Inner::WebSocetPlayer(sender) => sender.send(action.encode().unwrap()).unwrap(),
             Inner::EmptyPlayer() => (),
         }
     }

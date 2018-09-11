@@ -1,10 +1,10 @@
-use net::server::shandle::ServerHandle;
 use entity::CardPool;
 use game::core::{self, Event};
 use game::Game;
 use game::{Action, ActionError, OkCode};
+use net::server::shandle::ServerHandle;
 use net::settings::ServerConfig;
-use net::{Command,NetworkMode};
+use net::{Codec, NetworkMode};
 use std::error::Error as StdError;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
@@ -46,23 +46,24 @@ impl Factory for ServerFactory {
     type Handler = ServerHandle;
 
     fn connection_made(&mut self, out: WsSender) -> ServerHandle {
-        if self.next_player_id < self.max_players {
-            let ret =
-                ServerHandle::new(out, self.sender.clone(), self.next_player_id, Role::Player);
-            self.next_player_id += 1;
-            ret
+        let id = self.next_player_id;
+        self.next_player_id += 1;
+
+        let role = if self.next_player_id > self.max_players {
+            Role::GameFull
+        } else if self.next_player_id == self.max_players {
+            Role::Player(true) // true if final player to connect.
         } else {
-            ServerHandle::new(
-                out,
-                self.sender.clone(),
-                self.next_player_id,
-                Role::GameFull,
-            )
-        }
+            Role::Player(false)
+        };
+
+        ServerHandle::new(out, self.sender.clone(), id, role)
     }
     fn connection_lost(&mut self, handle: ServerHandle) {
         warn!("Connection lost for pid {}", handle.player_id());
-        self.sender.send(Event::CloseConnection(handle.player_id())).unwrap_or(());
+        self.sender
+            .send(Event::CloseConnection(handle.player_id()))
+            .unwrap_or(());
     }
     fn on_shutdown(&mut self) {
         info!("ServerFactory received WebSocket shutdown request.");
@@ -71,7 +72,7 @@ impl Factory for ServerFactory {
 }
 
 pub enum Role {
-    Player,
+    Player(bool),
     Spectator,
     GameFull,
 }

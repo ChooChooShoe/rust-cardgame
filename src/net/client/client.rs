@@ -1,7 +1,7 @@
 use game::core::{self, Event};
 use game::Action;
 use game::Game;
-use net::{Command, Connection, NetworkMode};
+use net::{Codec, Connection, NetworkMode};
 use net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
 use std::borrow::Borrow;
 use std::error::Error as StdError;
@@ -53,25 +53,21 @@ fn thread_err<E: StdError>(e: E) -> Error {
 }
 impl Handler for Client {
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        let command = try!(Command::decode(&msg));
+        let action = Action::decode(&msg)?;
 
-        match command {
-            Command::ChangePlayerId(_from, to) => {
-                self.player_id = to;
+        match action {
+            Action::ChangePlayerId(_from, to) => {
+                self.player_id = to as i32;
                 Ok(())
             }
-            Command::Text(t) => {
+            Action::Text(t) => {
                 info!("Received chat: {}", t);
                 Ok(())
             }
-            Command::TakeAction(action) => {
-                info!("Received action {:?}", action);
+            _ => {// Any other action is sent to core thread.
+                info!("Client #{} received general action {:?}", self.player_id, action);
                 let ev = Event::OnPlayerAction(self.player_id as usize, action);
                 self.thread_out.send(ev).map_err(thread_err)
-            }
-            _ => {
-                warn!("Unsupported command recived. Ignoring.");
-                Ok(())
             }
         }
     }
