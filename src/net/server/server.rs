@@ -1,22 +1,14 @@
-use entity::CardPool;
 use game::core::{self, Event};
 use game::Game;
-use game::{Action, ActionError, OkCode};
 use net::server::shandle::ServerHandle;
 use net::settings::ServerConfig;
-use net::{Codec, NetworkMode};
-use std::error::Error as StdError;
+use net::NetworkMode;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
 use std::thread;
-use ws::util::Timeout;
-use ws::util::Token;
 use ws::Sender as WsSender;
-use ws::{
-    Builder, CloseCode, Error, ErrorKind, Factory, Frame, Handler, Handshake, Message, Request,
-    Response, Result,
-};
+use ws::{Builder, Factory};
 
 pub fn listen<A: ToSocketAddrs>(ip: A) {
     let settings = ServerConfig::from_disk().into();
@@ -59,16 +51,16 @@ impl Factory for ServerFactory {
 
         ServerHandle::new(out, self.sender.clone(), id, role)
     }
-    fn connection_lost(&mut self, handle: ServerHandle) {
-        warn!("Connection lost for pid {}", handle.player_id());
-        self.sender
-            .send(Event::CloseConnection(handle.player_id()))
-            .unwrap_or(());
-    }
-    fn on_shutdown(&mut self) {
-        info!("ServerFactory received WebSocket shutdown request.");
-        self.sender.send(Event::StopAndExit()).unwrap_or(());
-    }
+    // fn connection_lost(&mut self, handle: ServerHandle) {
+    //     warn!("Connection lost for pid {}", handle.player_id());
+    //     self.sender
+    //         .send(Event::CloseConnection(handle.player_id()))
+    //         .unwrap_or(());
+    // }
+    // fn on_shutdown(&mut self) {
+    //     info!("ServerFactory received WebSocket shutdown request.");
+    //     self.sender.send(Event::StopAndExit()).unwrap_or(());
+    // }
 }
 
 pub enum Role {

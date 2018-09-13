@@ -3,7 +3,7 @@ use game::{Player, Zone};
 use net::Codec;
 use std::io;
 use std::time::Instant;
-use ws::Sender as WsSender;
+use ws::{Sender as WsSender,CloseCode};
 
 pub struct Connection {
     player_id: usize,
@@ -32,6 +32,19 @@ impl Connection {
     pub fn send(&mut self, action: &Action) -> Result<(), ()> {
         self.inner.send(action);
         Ok(())
+    }
+
+    pub fn close(&self) {
+        match &self.inner {
+            Inner::WebSocetPlayer(ws) => ws.close(CloseCode::Normal).unwrap_or(()),
+            Inner::EmptyPlayer() => (),
+        }
+    }
+    pub fn shutdown(&self) {
+        match &self.inner {
+            Inner::WebSocetPlayer(ws) => ws.shutdown().unwrap_or(()),
+            Inner::EmptyPlayer() => (),
+        }
     }
     pub fn on_close_connection(&mut self) {
         self.inner = Inner::EmptyPlayer();

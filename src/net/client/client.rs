@@ -23,10 +23,11 @@ pub fn connect<U: Borrow<str>>(url: U) {
     ws::connect(url, |out: WsSender| Client::new(out, send.clone()))
         .expect("Couldn't begin connection to remote server and/or create a local client");
 
-    info!("Waiting for 'Game Core Thread' to close.");
+    info!("Waiting for client core to close.");
     client_core_handle
         .join()
-        .expect("Couldn't join on 'Game Core Thread'");
+        .expect("Couldn't join on client core thread");
+    info!("Client Done!");
 }
 
 pub struct Client {
@@ -64,8 +65,12 @@ impl Handler for Client {
                 info!("Received chat: {}", t);
                 Ok(())
             }
-            _ => {// Any other action is sent to core thread.
-                info!("Client #{} received general action {:?}", self.player_id, action);
+            _ => {
+                // Any other action is sent to core thread.
+                info!(
+                    "Client #{} received general action {:?}",
+                    self.player_id, action
+                );
                 let ev = Event::OnPlayerAction(self.player_id as usize, action);
                 self.thread_out.send(ev).map_err(thread_err)
             }
@@ -84,9 +89,7 @@ impl Handler for Client {
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
         info!("Connection closing due to ({:?}) {}", code, reason);
-
-        let ev = Event::CloseConnection(self.player_id as usize);
-        if let Err(err) = self.thread_out.send(ev) {
+        if let Err(err) = self.thread_out.send(Event::StopAndExit()) {
             error!(
                 "Error: Thread channel dropped on conection close: {:?}",
                 err
@@ -95,7 +98,7 @@ impl Handler for Client {
     }
     #[inline]
     fn on_shutdown(&mut self) {
-        info!("Client received WebSocket shutdown request.");
+        warn!("Client received WebSocket shutdown request.");
     }
 
     #[inline]

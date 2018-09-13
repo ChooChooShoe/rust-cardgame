@@ -83,11 +83,8 @@ fn main() {
                 net::client::connect("ws://127.0.0.1:3012")
             }),
         );
-        info!("Joining Thread 0 for Server");
         handels.0.join().unwrap();
-        info!("Joining Thread 1 for Client A");
         handels.1.join().unwrap();
-        info!("Joining Thread 2 for Client B");
         handels.2.join().unwrap();
         
     }

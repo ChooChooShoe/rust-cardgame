@@ -1,3 +1,4 @@
+use game::MAX_TURNS;
 use net::Connection;
 use std::sync::mpsc::{Receiver, RecvError, RecvTimeoutError, TryRecvError};
 use std::time::{Duration, Instant};
@@ -24,7 +25,7 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     //let mut connections: Vec<Connection> = Vec::new();
     let mut active_player = 0;
     let mut turn_count = 0;
-    let mut current_step = Step::PlayersConnecting;
+    let mut current_state = State::PlayersConnecting;
 
     info!("Waiting for connections");
     loop {
@@ -52,30 +53,44 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
 
     game.run_mulligan();
 
-    loop {
-        match recv.recv() {
-            Ok(Event::OpenConnection(id, connection)) => {
-                info!("Core got connection for player #{}", id);
-                *game.player_conn(id) = connection;
-            }
-            Ok(Event::CloseConnection(id)) => game.player_conn(id).on_close_connection(),
-            Ok(Event::AllPlayersConnected()) => (),// Ignore repeated AllPlayersConnected().
-            Ok(Event::StopAndExit()) => return,
-            Err(RecvError) => return,
-
-            Ok(Event::OnPlayerAction(player_id, action)) => {
-                game.queue_action(action);
-                //TODO all actions in queue are performed with this connection
-                //TODO watch for infinit loops.
-                while let Some(action) = game.pop_action() {
-                    match ServerAction::perform(action, &mut game, player_id) {
-                        Ok(code) => info!("action: {:?}", code),
-                        Err(e) => info!("action: {:?}", e),
+    let mut state = State::GameStart;
+    while state != State::Done {
+        state = state.next();
+        let state_start = Instant::now();
+        let deadline = state_start + state.get_duration();
+        loop {
+            match recv.recv_deadline(deadline) {
+                Ok(Event::OpenConnection(id, connection)) => {
+                    info!("Core got connection for player #{}", id);
+                    *game.player_conn(id) = connection;
+                }
+                Ok(Event::CloseConnection(id)) => game.player_conn(id).on_close_connection(),
+                Ok(Event::AllPlayersConnected()) => (), // Ignore repeated AllPlayersConnected().
+                Ok(Event::StopAndExit()) => state = State::EndGame(GameResults::StopAndExit),
+                Err(RecvTimeoutError::Disconnected) => return,
+                Err(RecvTimeoutError::Timeout) => {
+                    warn!("State {:?} timed out.", state);
+                    break;
+                }
+                Ok(Event::OnPlayerAction(player_id, action)) => {
+                    game.queue_action(action);
+                    //TODO all actions in queue are performed with this connection
+                    //TODO watch for infinit loops.
+                    while let Some(action) = game.pop_action() {
+                        match ServerAction::perform(action, &mut game, player_id) {
+                            Ok(code) => info!("action: {:?}", code),
+                            Err(e) => info!("action: {:?}", e),
+                        }
                     }
                 }
             }
         }
     }
+
+    for conn in game.connections() {
+        conn.close();
+    }
+    game.conn_to_server().shutdown();
 }
 
 pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
@@ -84,7 +99,7 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     let mut client_id = 0;
     let mut active_player = 0;
     let mut turn_count = 0;
-    let mut current_step = Step::PlayersConnecting;
+    let mut current_state = State::PlayersConnecting;
     loop {
         match recv.recv() {
             Ok(Event::OpenConnection(id, new_connection)) => {
@@ -92,12 +107,12 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
                 connection = new_connection;
             }
             Ok(Event::CloseConnection(_id)) => {
-                current_step = Step::NoConnection;
+                current_state = State::NoConnection;
                 connection.on_close_connection();
             }
-            Ok(Event::AllPlayersConnected()) => current_step = Step::GameStart,
+            Ok(Event::AllPlayersConnected()) => current_state = State::GameStart,
             Ok(Event::StopAndExit()) => {
-                current_step = Step::EndGame;
+                current_state = State::EndGame(GameResults::StopAndExit);
                 return;
             }
             Err(RecvError) => return,
@@ -118,14 +133,15 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Step {
+enum State {
     PlayersConnecting,
     GameStart,
     MuliginStart,
     MuliginEnd,
     PlayerTurn(usize, u32, Phase),
-    EndGame,
+    EndGame(GameResults),
     NoConnection,
+    Done,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,58 +153,72 @@ enum Phase {
     End,
     Cleanup,
 }
+impl Phase {
+    pub fn next(self) -> Phase {
+        match self {
+            Phase::Start => Phase::Draw,
+            Phase::Draw => Phase::Play,
+            Phase::Play => Phase::Combat,
+            Phase::Combat => Phase::End,
+            Phase::End => Phase::Cleanup,
+            Phase::Cleanup => Phase::Start,
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GameResults {
+    PlayerWin(usize),
+    OutOfTurns,
+    StopAndExit,
+}
 
-impl Step {
+impl State {
     pub fn get_duration(&self) -> Duration {
         match self {
-            Step::PlayersConnecting => Duration::from_secs(1),
-            Step::GameStart => Duration::from_millis(500),
-            Step::MuliginStart => Duration::from_secs(4),
-            Step::MuliginEnd => Duration::from_millis(500),
-            Step::PlayerTurn(_pidx, _turn, _phase) => Duration::from_secs(2),
-            Step::EndGame => Duration::from_millis(100),
-            Step::NoConnection => Duration::from_secs(30),
+            State::PlayersConnecting => Duration::from_secs(1),
+            State::GameStart => Duration::from_millis(500),
+            State::MuliginStart => Duration::from_secs(4),
+            State::MuliginEnd => Duration::from_millis(500),
+            State::PlayerTurn(_pidx, _turn, _phase) => Duration::from_secs(1),
+            State::EndGame(_) => Duration::from_millis(100),
+            State::NoConnection => Duration::from_secs(30),
+            State::Done => Duration::from_secs(0),
+        }
+    }
+
+    fn next(self) -> State {
+        match self {
+            State::GameStart => State::PlayerTurn(0, 1, Phase::Start),
+            State::PlayerTurn(id, turn, Phase::Cleanup) => {
+                let next_player_id = (id + 1) % 2; //change 2 to MAX_PLAYER_COUNT;
+                let mut turn_count = turn;
+                if next_player_id == 0 {
+                    turn_count += 1;
+                }
+                if turn_count >= MAX_TURNS {
+                    State::EndGame(GameResults::OutOfTurns)
+                } else {
+                    State::PlayerTurn(next_player_id, turn_count, Phase::Start)
+                }
+            }
+            State::PlayerTurn(id, turn, phase) => State::PlayerTurn(id, turn, phase.next()),
+            State::EndGame(_) => State::Done,
+            _ => State::Done,
         }
     }
 }
 
 struct StepLoop {
-    next: Option<Step>,
+    next: Option<State>,
 }
 
 impl StepLoop {
     fn new() -> StepLoop {
         StepLoop {
-            next: Some(Step::GameStart),
+            next: Some(State::GameStart),
         }
     }
-    fn from(step: Step) -> StepLoop {
-        StepLoop { next: Some(step) }
+    fn from(state: State) -> StepLoop {
+        StepLoop { next: Some(state) }
     }
 }
-
-// impl Iterator for StepLoop {
-//     type Item = Step;
-
-//     fn next(&mut self) -> Option<Step> {
-//         let curr = self.next.clone();
-//         self.next = match curr {
-//             Some(Step::GameStart) => Some(Step::PlayerTurn(0, 0)),
-//             Some(Step::PlayerTurn(i, t)) => {
-//                 let next_pidx = (i + 1) % MAX_PLAYER_COUNT;
-//                 let mut turn_count = t;
-//                 if next_pidx == 0 {
-//                     turn_count += 1;
-//                 }
-//                 if turn_count >= MAX_TURNS {
-//                     Some(Step::EndGame)
-//                 } else {
-//                     Some(Step::PlayerTurn(next_pidx, turn_count))
-//                 }
-//             }
-//             Some(Step::EndGame) => None,
-//             None => None,
-//         };
-//         curr
-//     }
-// }
