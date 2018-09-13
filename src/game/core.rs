@@ -18,16 +18,11 @@ pub enum Event {
 }
 
 pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
-    //assert_eq!(mode, NetworkMode::Server);
-
+    assert_eq!(mode, NetworkMode::Server);
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
 
-    //let mut connections: Vec<Connection> = Vec::new();
-    let mut active_player = 0;
-    let mut turn_count = 0;
-    let mut current_state = State::PlayersConnecting;
-
     info!("Waiting for connections");
+    let mut state = State::PlayersConnecting;
     loop {
         // Loops waiting for 0 or more Event::AddPlayers(_,_) until 1 Event::AllPlayersConnected().
         match recv.recv() {
@@ -53,7 +48,6 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
 
     game.run_mulligan();
 
-    let mut state = State::GameStart;
     while state != State::Done {
         state = state.next();
         let state_start = Instant::now();
@@ -107,7 +101,7 @@ pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
                 connection = new_connection;
             }
             Ok(Event::CloseConnection(_id)) => {
-                current_state = State::NoConnection;
+                current_state = State::PlayersConnecting;
                 connection.on_close_connection();
             }
             Ok(Event::AllPlayersConnected()) => current_state = State::GameStart,
@@ -140,7 +134,6 @@ enum State {
     MuliginEnd,
     PlayerTurn(usize, u32, Phase),
     EndGame(GameResults),
-    NoConnection,
     Done,
 }
 
@@ -177,17 +170,31 @@ impl State {
         match self {
             State::PlayersConnecting => Duration::from_secs(1),
             State::GameStart => Duration::from_millis(500),
-            State::MuliginStart => Duration::from_secs(4),
-            State::MuliginEnd => Duration::from_millis(500),
+            State::MuliginStart => Duration::from_secs(0),
+            State::MuliginEnd => Duration::from_secs(0),
             State::PlayerTurn(_pidx, _turn, _phase) => Duration::from_secs(1),
             State::EndGame(_) => Duration::from_millis(100),
-            State::NoConnection => Duration::from_secs(30),
             State::Done => Duration::from_secs(0),
         }
     }
 
+    // All State transitions are done here. States only have one possible next state.
     fn next(self) -> State {
         match self {
+            State::PlayersConnecting => {
+                info!("Game Starting!");
+                State::MuliginStart
+            }
+            State::MuliginStart => {
+                info!("Muligin begin!");
+                //TODO muligin.
+                State::MuliginEnd
+            },
+            State::MuliginEnd => {
+                info!("Sending muligin results");
+                //TODO Send muligin results.
+                State::GameStart
+            }
             State::GameStart => State::PlayerTurn(0, 1, Phase::Start),
             State::PlayerTurn(id, turn, Phase::Cleanup) => {
                 let next_player_id = (id + 1) % 2; //change 2 to MAX_PLAYER_COUNT;
@@ -203,7 +210,7 @@ impl State {
             }
             State::PlayerTurn(id, turn, phase) => State::PlayerTurn(id, turn, phase.next()),
             State::EndGame(_) => State::Done,
-            _ => State::Done,
+            State::Done => panic!("State::Done can not have a next() state."),
         }
     }
 }
