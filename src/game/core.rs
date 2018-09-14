@@ -1,8 +1,7 @@
 use game::MAX_TURNS;
 use net::Connection;
-use std::sync::mpsc::{Receiver, RecvError, RecvTimeoutError, TryRecvError};
+use std::sync::mpsc::{Receiver, RecvError, RecvTimeoutError};
 use std::time::{Duration, Instant};
-use utils::timer::Timer;
 
 use game::action::{Action, ClientAction, ServerAction};
 use game::Game;
@@ -21,64 +20,29 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     assert_eq!(mode, NetworkMode::Server);
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
 
-    info!("Waiting for connections");
     let mut state = State::PlayersConnecting;
-    loop {
-        // Loops waiting for 0 or more Event::AddPlayers(_,_) until 1 Event::AllPlayersConnected().
-        match recv.recv() {
-            Ok(Event::OpenConnection(id, connection)) => {
-                info!("Core got connection for player #{}", id);
-                *game.player_conn(id) = connection;
-            }
-            Ok(Event::CloseConnection(id)) => game.player_conn(id).on_close_connection(),
-            Ok(Event::AllPlayersConnected()) => break,
-            Ok(Event::StopAndExit()) => return,
-            Ok(_) => warn!("All players have not connected yet! Event can not be handled."),
-            Err(RecvError) => return,
-        }
-    }
-
-    // When any one of the server handles sends StartGame() we begin.
-    info!("Game Started");
-    let _game_start_time = Instant::now();
-
-    game.send_all_action(&Action::GameStart());
-
-    game.shuffle_decks();
-
-    game.run_mulligan();
 
     while state != State::Done {
-        state = state.next();
         let state_start = Instant::now();
         let deadline = state_start + state.get_duration();
-        loop {
+
+        state.enter(&mut game);
+        let next_state = loop {
             match recv.recv_deadline(deadline) {
-                Ok(Event::OpenConnection(id, connection)) => {
-                    info!("Core got connection for player #{}", id);
-                    *game.player_conn(id) = connection;
-                }
-                Ok(Event::CloseConnection(id)) => game.player_conn(id).on_close_connection(),
-                Ok(Event::AllPlayersConnected()) => (), // Ignore repeated AllPlayersConnected().
-                Ok(Event::StopAndExit()) => state = State::EndGame(GameResults::StopAndExit),
-                Err(RecvTimeoutError::Disconnected) => return,
-                Err(RecvTimeoutError::Timeout) => {
-                    warn!("State {:?} timed out.", state);
-                    break;
-                }
-                Ok(Event::OnPlayerAction(player_id, action)) => {
-                    game.queue_action(action);
-                    //TODO all actions in queue are performed with this connection
-                    //TODO watch for infinit loops.
-                    while let Some(action) = game.pop_action() {
-                        match ServerAction::perform(action, &mut game, player_id) {
-                            Ok(code) => info!("action: {:?}", code),
-                            Err(e) => info!("action: {:?}", e),
-                        }
+                Ok(event) => {
+                    if let Some(next) = state.on_event(&mut game, event) {
+                        break next;
                     }
                 }
+                Err(RecvTimeoutError::Disconnected) => break State::Done,
+                Err(RecvTimeoutError::Timeout) => {
+                    info!("State {:?} timeout!", state);
+                    break state.next_on_timeout(&mut game);
+                }
             }
-        }
+        };
+        state.exit(&mut game);
+        state = state.transition(&mut game, next_state);
     }
 
     for conn in game.connections() {
@@ -147,7 +111,7 @@ enum Phase {
     Cleanup,
 }
 impl Phase {
-    pub fn next(self) -> Phase {
+    pub fn next(self, _game: &mut Game) -> Phase {
         match self {
             Phase::Start => Phase::Draw,
             Phase::Draw => Phase::Play,
@@ -168,7 +132,7 @@ enum GameResults {
 impl State {
     pub fn get_duration(&self) -> Duration {
         match self {
-            State::PlayersConnecting => Duration::from_secs(1),
+            State::PlayersConnecting => Duration::from_secs(30),
             State::GameStart => Duration::from_millis(500),
             State::MuliginStart => Duration::from_secs(0),
             State::MuliginEnd => Duration::from_secs(0),
@@ -178,18 +142,71 @@ impl State {
         }
     }
 
-    // All State transitions are done here. States only have one possible next state.
-    fn next(self) -> State {
-        match self {
-            State::PlayersConnecting => {
-                info!("Game Starting!");
-                State::MuliginStart
+    // Prossesing for a given event.
+    // Returns the next state if a state transistion is needed.
+    // Returning None will keep looping on_event() untill a State is returned or get_duration() is exceded.
+    fn on_event(&mut self, game: &mut Game, event: Event) -> Option<State> {
+        match event {
+            Event::OpenConnection(id, connection) => {
+                info!("Core got connection for player #{}", id);
+                *game.player_conn(id) = connection;
+                None
             }
+            Event::CloseConnection(id) => {
+                game.player_conn(id).on_close_connection();
+                None
+            }
+            Event::AllPlayersConnected() => {
+                if let State::PlayersConnecting = self {
+                    Some(State::GameStart)
+                } else {
+                    None
+                }
+            }
+            Event::StopAndExit() => Some(State::EndGame(GameResults::StopAndExit)),
+            Event::OnPlayerAction(player_id, action) => {
+                game.queue_action(action);
+                //TODO all actions in queue are performed with this connection
+                //TODO watch for infinit loops.
+                while let Some(action) = game.pop_action() {
+                    match ServerAction::perform(action, game, player_id) {
+                        Ok(code) => info!("action: {:?}", code),
+                        Err(e) => info!("action: {:?}", e),
+                    }
+                }
+                None
+            }
+        }
+    }
+    // Moves from this state to the given next_state.
+    fn transition(self, game: &mut Game, next_state: State) -> State {
+        match (self, next_state) {
+            (State::Done, _) => return State::Done,
+            (_, State::GameStart) => {
+                game.send_all_action(&Action::GameStart());
+                game.shuffle_decks();
+                game.run_mulligan();
+            }
+            (_from, _to) => (),
+        }
+        next_state
+    }
+
+    fn enter(&mut self, game: &mut Game) {
+        info!("Now entering state {:?}", self)
+    }
+
+    fn exit(&mut self, game: &mut Game) {}
+
+    // Creates the next state when self is timedout.
+    fn next_on_timeout(&mut self, game: &mut Game) -> State {
+        match self {
+            State::PlayersConnecting => State::Done, //Not all players connected.
             State::MuliginStart => {
                 info!("Muligin begin!");
                 //TODO muligin.
                 State::MuliginEnd
-            },
+            }
             State::MuliginEnd => {
                 info!("Sending muligin results");
                 //TODO Send muligin results.
@@ -197,18 +214,20 @@ impl State {
             }
             State::GameStart => State::PlayerTurn(0, 1, Phase::Start),
             State::PlayerTurn(id, turn, Phase::Cleanup) => {
-                let next_player_id = (id + 1) % 2; //change 2 to MAX_PLAYER_COUNT;
-                let mut turn_count = turn;
-                if next_player_id == 0 {
-                    turn_count += 1;
-                }
+                // The final phase of the turn.
+                let next_player_id = (*id + 1) % game.players().len();
+                let turn_count = if next_player_id == 0 {
+                    *turn + 1
+                } else {
+                    *turn
+                };
                 if turn_count >= MAX_TURNS {
                     State::EndGame(GameResults::OutOfTurns)
                 } else {
                     State::PlayerTurn(next_player_id, turn_count, Phase::Start)
                 }
             }
-            State::PlayerTurn(id, turn, phase) => State::PlayerTurn(id, turn, phase.next()),
+            State::PlayerTurn(id, turn, phase) => State::PlayerTurn(*id, *turn, phase.next(game)),
             State::EndGame(_) => State::Done,
             State::Done => panic!("State::Done can not have a next() state."),
         }
