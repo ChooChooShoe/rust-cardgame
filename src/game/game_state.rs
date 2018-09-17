@@ -41,11 +41,11 @@ impl Game {
         &mut self.connections
     }
     // Gets the server's connection for player with id.
-    pub fn player_conn(&mut self, id: usize) -> &mut Connection {
+    pub fn connection(&mut self, id: usize) -> &mut Connection {
         &mut self.connections[id]
     }
     // Gets connection to server for the client.
-    pub fn conn_to_server(&mut self) -> &mut Connection {
+    pub fn server(&mut self) -> &mut Connection {
         &mut self.connections[0]
     }
     pub fn players(&mut self) -> &mut [Player] {
@@ -103,6 +103,6 @@ impl Game {
     }
     // Sends a game action to the player over their connection.
     pub fn send_action(&mut self, client_id: usize, action: &Action) {
-        self.player_conn(client_id).send(action).unwrap_or(());
+        self.connection(client_id).send(action).unwrap_or(());
     }
 }

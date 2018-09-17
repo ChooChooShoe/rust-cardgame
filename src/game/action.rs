@@ -46,7 +46,7 @@ pub trait ServerAction {
     fn undo(self, game: &mut Game) -> Result;
 }
 pub trait ClientAction {
-    fn perform(self, game: &mut Game, server: &mut Connection) -> Result;
+    fn perform(self, game: &mut Game) -> Result;
     fn undo(self, game: &mut Game) -> Result;
 }
 // Code for the server when a client want to do an action
@@ -83,10 +83,10 @@ impl ServerAction for Action {
 }
 // Code for the client when the server wants us to act.
 impl ClientAction for Action {
-    fn perform(self, _game: &mut Game, server: &mut Connection) -> Result {
+    fn perform(self, game: &mut Game) -> Result {
         match self {
             Action::GameStart() => {
-                server.send(&Action::DrawCardAnon(0,3)).unwrap();
+                game.server().send(&Action::DrawCardAnon(0,3)).unwrap();
                 Ok(OkCode::Nothing)
             }
             _ => Ok(OkCode::Nothing),

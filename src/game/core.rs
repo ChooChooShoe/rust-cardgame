@@ -22,11 +22,16 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
 
     let mut state = State::PlayersConnecting;
 
+    // loop until curent state is State::Done.
     while state != State::Done {
         let state_start = Instant::now();
         let deadline = state_start + state.get_duration();
 
+        // Notify current state before loop.
         state.enter(&mut game);
+
+        // Loops until the current state gets an event that will change state.
+        // OR until the current states times out and next_on_timeout is used.
         let next_state = loop {
             match recv.recv_deadline(deadline) {
                 Ok(event) => {
@@ -41,53 +46,66 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
                 }
             }
         };
+        // Recv loop ended. Notify current state. Then switch states.
         state.exit(&mut game);
         state = state.transition(&mut game, next_state);
     }
 
+    // All connections are closed after the game.
     for conn in game.connections() {
         conn.close();
     }
-    game.conn_to_server().shutdown();
 }
 
 pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     assert_eq!(mode, NetworkMode::Client);
-    let mut connection = Connection::from_empty(0);
-    let mut client_id = 0;
-    let mut active_player = 0;
-    let mut turn_count = 0;
-    let mut current_state = State::PlayersConnecting;
-    loop {
-        match recv.recv() {
-            Ok(Event::OpenConnection(id, new_connection)) => {
-                client_id = id;
-                connection = new_connection;
-            }
-            Ok(Event::CloseConnection(_id)) => {
-                current_state = State::PlayersConnecting;
-                connection.on_close_connection();
-            }
-            Ok(Event::AllPlayersConnected()) => current_state = State::GameStart,
-            Ok(Event::StopAndExit()) => {
-                current_state = State::EndGame(GameResults::StopAndExit);
-                return;
-            }
-            Err(RecvError) => return,
+    let mut state = State::PlayersConnecting;
 
-            Ok(Event::OnPlayerAction(_player_id, action)) => {
-                game.queue_action(action);
-                //TODO all actions in queue are performed with this connection
-                //TODO watch for infinit loops.
-                while let Some(action) = game.pop_action() {
-                    match ClientAction::perform(action, &mut game, &mut connection) {
-                        Ok(code) => info!("action: {:?}", code),
-                        Err(e) => info!("action: {:?}", e),
+    // loop until curent state is State::Done.
+    while state != State::Done {
+        // No Timmers for client.
+        //let state_start = Instant::now();
+        //let deadline = state_start + state.get_duration();
+
+        // Notify current state before loop.
+        state.enter(&mut game);
+
+        // Loops until the current state gets an event that will change state.
+        // OR until the current states times out and next_on_timeout is used.
+        let next_state = loop {
+            match recv.recv() {
+                Ok(Event::OpenConnection(_, connection)) => {
+                    *game.server() = connection;
+                }
+                Ok(Event::CloseConnection(_id)) => {
+                    game.server().on_close_connection();
+                    // TODO A way to do reconecting.
+                    // break State::PlayersConnecting
+                }
+                Ok(Event::AllPlayersConnected()) => (), // Not for clients.
+                Ok(Event::StopAndExit()) => {
+                    break State::Done
+                }
+                Ok(Event::OnPlayerAction(_player_id, action)) => {
+                    game.queue_action(action);
+                    //TODO all actions in queue are performed with this connection
+                    //TODO watch for infinit loops.
+                    while let Some(action) = game.pop_action() {
+                        match ClientAction::perform(action, &mut game) {
+                            Ok(code) => info!("action: {:?}", code),
+                            Err(e) => info!("action: {:?}", e),
+                        }
                     }
                 }
+                Err(RecvError) => break State::Done,
             }
-        }
+        };
+        // Recv loop ended. Notify current state. Then switch states.
+        state.exit(&mut game);
+        state = state.transition(&mut game, next_state);
     }
+
+    game.server().close();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,11 +151,11 @@ impl State {
     pub fn get_duration(&self) -> Duration {
         match self {
             State::PlayersConnecting => Duration::from_secs(30),
-            State::GameStart => Duration::from_millis(500),
+            State::GameStart => Duration::from_millis(50),
             State::MuliginStart => Duration::from_secs(0),
             State::MuliginEnd => Duration::from_secs(0),
-            State::PlayerTurn(_pidx, _turn, _phase) => Duration::from_secs(1),
-            State::EndGame(_) => Duration::from_millis(100),
+            State::PlayerTurn(_pidx, _turn, _phase) => Duration::from_millis(50),
+            State::EndGame(_) => Duration::from_millis(10),
             State::Done => Duration::from_secs(0),
         }
     }
@@ -149,11 +167,11 @@ impl State {
         match event {
             Event::OpenConnection(id, connection) => {
                 info!("Core got connection for player #{}", id);
-                *game.player_conn(id) = connection;
+                *game.connection(id) = connection;
                 None
             }
             Event::CloseConnection(id) => {
-                game.player_conn(id).on_close_connection();
+                game.connection(id).on_close_connection();
                 None
             }
             Event::AllPlayersConnected() => {
@@ -163,7 +181,7 @@ impl State {
                     None
                 }
             }
-            Event::StopAndExit() => Some(State::EndGame(GameResults::StopAndExit)),
+            Event::StopAndExit() => Some(State::Done),
             Event::OnPlayerAction(player_id, action) => {
                 game.queue_action(action);
                 //TODO all actions in queue are performed with this connection
@@ -178,7 +196,8 @@ impl State {
             }
         }
     }
-    // Moves from this state to the given next_state.
+    // Consumes self and next_state to return the next current state.
+    // Allows for non-standard transtions.
     fn transition(self, game: &mut Game, next_state: State) -> State {
         match (self, next_state) {
             (State::Done, _) => return State::Done,

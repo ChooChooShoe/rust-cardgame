@@ -17,6 +17,7 @@ pub fn listen<A: ToSocketAddrs>(ip: A) {
 
     let factory = ServerFactory {
         sender: send,
+        active_connections: 0,
         max_players: 2,
         next_player_id: 0,
     };
@@ -31,6 +32,7 @@ pub fn listen<A: ToSocketAddrs>(ip: A) {
 }
 struct ServerFactory {
     sender: TSender<Event>,
+    active_connections: usize,
     max_players: usize,
     next_player_id: usize,
 }
@@ -49,18 +51,26 @@ impl Factory for ServerFactory {
             Role::Player(false)
         };
 
+        self.active_connections += 1;
         ServerHandle::new(out, self.sender.clone(), id, role)
     }
-    // fn connection_lost(&mut self, handle: ServerHandle) {
-    //     warn!("Connection lost for pid {}", handle.player_id());
-    //     self.sender
-    //         .send(Event::CloseConnection(handle.player_id()))
-    //         .unwrap_or(());
-    // }
-    // fn on_shutdown(&mut self) {
-    //     info!("ServerFactory received WebSocket shutdown request.");
-    //     self.sender.send(Event::StopAndExit()).unwrap_or(());
-    // }
+    fn connection_lost(&mut self, handle: ServerHandle) {
+        info!("Connection #{} lost.", handle.player_id);
+        self.active_connections -= 1;
+        // The last connecction will shutdown the server.
+        if self.active_connections == 0 {
+            info!("All connections lost: Begin shutdown.");
+            if handle.ws.shutdown().is_err() {
+                warn!("Unable to send shutdown. Have we stopped already?")
+            }
+        }
+    }
+    fn on_shutdown(&mut self) {
+        info!("ServerFactory received WebSocket shutdown request.");
+        if self.sender.send(Event::StopAndExit()).is_ok() {
+            info!("Sending 'StopAndExit' to core.")
+        }
+    }
 }
 
 pub enum Role {

@@ -17,9 +17,9 @@ use ws::{
 };
 /// Represents one player's connection to us (the ServerHandle)
 pub struct ServerHandle {
-    ws: WsSender,
+    pub ws: WsSender,
     core: TSender<Event>,
-    player_id: usize,
+    pub player_id: usize,
     role: Role,
     expire_timeout: Option<Timeout>,
     mulligin_timeout: Option<Timeout>,
@@ -34,9 +34,6 @@ impl ServerHandle {
             expire_timeout: None,
             mulligin_timeout: None,
         }
-    }
-    pub fn player_id(&self) -> usize {
-        self.player_id
     }
 }
 
@@ -57,6 +54,7 @@ impl Handler for ServerHandle {
     #[inline]
     fn on_shutdown(&mut self) {
         info!("ServerHandle received WebSocket shutdown request.");
+        self.ws.close(CloseCode::Normal).unwrap_or(())
     }
 
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
@@ -132,7 +130,7 @@ impl Handler for ServerHandle {
             }
         }
 
-        error!("{:?}", err);
+        error!("Server Handle {} had error {:?}", self.player_id(), err);
     }
 
     #[inline]
