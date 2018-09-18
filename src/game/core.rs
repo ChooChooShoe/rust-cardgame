@@ -211,11 +211,11 @@ impl State {
         next_state
     }
 
-    fn enter(&mut self, game: &mut Game) {
+    fn enter(&mut self, _game: &mut Game) {
         info!("Now entering state {:?}", self)
     }
 
-    fn exit(&mut self, game: &mut Game) {}
+    fn exit(&mut self, _game: &mut Game) {}
 
     // Creates the next state when self is timedout.
     fn next_on_timeout(&mut self, game: &mut Game) -> State {

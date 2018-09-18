@@ -69,7 +69,7 @@ impl Inner {
             _ => println!("Unknown command: {:?}", args),
         }
     }
-    pub fn do_turn(&mut self, player: &mut Player, turn_count: usize) -> Option<u64> {
+    pub fn do_turn(&mut self, player: &mut Player, _turn_count: usize) -> Option<u64> {
         //info!("Player #{} turn {} start.", self.player_index, turn_count);
 
         let mut input = String::new();

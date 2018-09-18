@@ -163,7 +163,7 @@ impl Card {
         info!("on_card_drawn!");
         Dispatch::broadcast(Trigger::OnCardDrawn(player, self))
     }
-    pub fn after_card_drawn(&mut self, player: &mut Player) {
+    pub fn after_card_drawn(&mut self, _player: &mut Player) {
         Dispatch::broadcast(Trigger::AfterCardDrawn(self))
     }
 }

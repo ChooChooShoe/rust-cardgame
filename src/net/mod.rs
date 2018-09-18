@@ -1,15 +1,12 @@
 pub mod client;
-pub mod command;
 pub mod connection;
 pub mod server;
 mod settings;
 
-pub use self::command::Command;
 pub use self::connection::Connection;
 use bincode::{deserialize, serialize, ErrorKind as BincodeError};
 use game::action::Action;
 use ws::{Error as WsError, ErrorKind as WsErrorKind, Message as WsMessage};
-use std::error::Error;
 use std::convert::From;
 
 #[derive(Eq, PartialEq, Clone, Debug)]
