@@ -91,20 +91,20 @@ impl Dispatch {
     }
 
     pub fn broadcast(mut trigger: Trigger) {
-        info!("Broadcasting {:?}", trigger);
+        debug!("Broadcasting {:?}", trigger);
         trigger.pre_broadcast();
         if trigger.cancelable() {
             for x in INSTANCE.read().unwrap().trigger_callbacks.iter() {
-                info!("Broadcast: Trigger for {}", x.0);
+                trace!("Broadcast callback for cancelable trigger:include_bytes! {}", x.0);
                 x.1(&mut trigger);
                 if trigger.is_canceled() {
-                    info!("Broadcast: Cancled on {}", x.0);
+                    info!("Broadcast cancled on {}", x.0);
                     break;
                 }
             }
         } else {
             for x in INSTANCE.read().unwrap().trigger_callbacks.iter() {
-                info!("Broadcast: Trigger for {}", x.0);
+                trace!("Broadcast callback for trigger: {}", x.0);
                 x.1(&mut trigger);
             }
         }

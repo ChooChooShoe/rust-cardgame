@@ -66,8 +66,8 @@ impl Handler for ServerHandle {
         match self.role {
             Role::Player(is_final) => {
                 if is_final {
-                    // timeout for 200 ms to start the game.
-                    try!(self.ws.timeout(0_200, GAMESTART));
+                    // timeout for 20 ms to start the game.
+                    try!(self.ws.timeout(0_020, GAMESTART));
                 }
                 // create a controller and send to thread.
                 let conn = Connection::from_network(self.player_id, self.ws.clone());
@@ -130,7 +130,7 @@ impl Handler for ServerHandle {
             }
         }
 
-        error!("Server Handle {} had error {:?}", self.player_id(), err);
+        error!("Server Handle {} had error {:?}", self.player_id, err);
     }
 
     #[inline]
