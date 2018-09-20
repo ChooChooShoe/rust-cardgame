@@ -1,8 +1,8 @@
-use entity::cardpool::PooledCardData;
-use entity::{Dispatch, TagKey, TagVal, Trigger};
-use game::player::Player;
-use game::script::{Script, ScriptManager};
-use game::GameScript;
+use crate::entity::cardpool::PooledCardData;
+use crate::entity::{Dispatch, TagKey, TagVal, Trigger};
+use crate::game::player::Player;
+use crate::game::script::{Script, ScriptManager};
+use crate::game::GameScript;
 use std::borrow::Cow;
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::HashMap;

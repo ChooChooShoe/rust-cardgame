@@ -1,6 +1,6 @@
-use entity::card::{Card, CardId};
-use game::script::Script;
-use entity::{TagKey, TagVal};
+use crate::entity::card::{Card, CardId};
+use crate::game::script::Script;
+use crate::entity::{TagKey, TagVal};
 use serde_json;
 use std::borrow::Cow;
 use std::collections::HashMap;

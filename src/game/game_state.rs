@@ -1,9 +1,9 @@
-use entity::cardpool::CardPool;
-use entity::trigger::{Dispatch, Trigger};
-use entity::{Card, Effect};
-use game::action::Action;
-use game::{Deck, Player, Zone, ZoneCollection};
-use net::Connection;
+use crate::entity::cardpool::CardPool;
+use crate::entity::trigger::{Dispatch, Trigger};
+use crate::entity::{Card, Effect};
+use crate::game::action::Action;
+use crate::game::{Deck, Player, Zone, ZoneCollection};
+use crate::net::Connection;
 use std::collections::HashMap;
 //use tags::*;
 use rand::{thread_rng, Rng};
@@ -81,7 +81,7 @@ impl Game {
     pub fn shuffle_decks(&mut self) {
         let mut rng = thread_rng();
         for p in self.players() {
-            p.set_deck(::game::Deck::new());
+            p.set_deck(crate::game::Deck::new());
             let mut deck = p.zones.deck.as_mut_slice();
             rng.shuffle(&mut deck);
         }

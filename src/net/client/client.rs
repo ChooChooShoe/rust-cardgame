@@ -1,8 +1,8 @@
-use game::core::{self, Event};
-use game::Action;
-use game::Game;
-use net::{Codec, Connection, NetworkMode};
-use net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
+use crate::game::core::{self, Event};
+use crate::game::Action;
+use crate::game::Game;
+use crate::net::{Codec, Connection, NetworkMode};
+use crate::net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
 use std::borrow::Borrow;
 use std::error::Error as StdError;
 use std::sync::mpsc::channel;

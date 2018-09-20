@@ -1,8 +1,8 @@
-use entity::card::CardId;
-use entity::Card;
-use entity::CardPool;
-use game::zones::ZoneName;
-use game::Player;
+use crate::entity::card::CardId;
+use crate::entity::Card;
+use crate::entity::CardPool;
+use crate::game::zones::ZoneName;
+use crate::game::Player;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Deck {

@@ -1,6 +1,6 @@
-use game::Action;
-use game::{Player, Zone};
-use net::Codec;
+use crate::game::Action;
+use crate::game::{Player, Zone};
+use crate::net::Codec;
 use std::io;
 use std::time::Instant;
 use ws::{Sender as WsSender,CloseCode};

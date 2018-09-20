@@ -1,7 +1,7 @@
-use entity::Card;
-use game::Player;
+use crate::entity::Card;
+use crate::game::Player;
 use std::collections::HashMap;
-use game::script::GameScript;
+use crate::game::script::GameScript;
 use std::fmt;
 
 pub enum Trigger<'a> {

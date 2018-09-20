@@ -5,7 +5,7 @@ mod settings;
 
 pub use self::connection::Connection;
 use bincode::{deserialize, serialize, ErrorKind as BincodeError};
-use game::action::Action;
+use crate::game::action::Action;
 use ws::{Error as WsError, ErrorKind as WsErrorKind, Message as WsMessage};
 use std::convert::From;
 

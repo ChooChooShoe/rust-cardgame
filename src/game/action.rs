@@ -1,8 +1,8 @@
 use bincode::{deserialize, serialize, ErrorKind};
-use game::action_result::{Error, OkCode, Result};
-use game::Deck;
-use game::Game;
-use net::Connection;
+use crate::game::action_result::{Error, OkCode, Result};
+use crate::game::Deck;
+use crate::game::Game;
+use crate::net::Connection;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
 use std::fmt;

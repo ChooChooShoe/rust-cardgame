@@ -1,8 +1,8 @@
-use game::core::{self, Event};
-use game::Game;
-use net::server::shandle::ServerHandle;
-use net::settings::ServerConfig;
-use net::NetworkMode;
+use crate::game::core::{self, Event};
+use crate::game::Game;
+use crate::net::server::shandle::ServerHandle;
+use crate::net::settings::ServerConfig;
+use crate::net::NetworkMode;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;

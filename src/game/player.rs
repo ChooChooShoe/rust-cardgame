@@ -1,18 +1,18 @@
-use net;
+use crate::net;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::io;
 
-use entity::Card;
-use entity::CardPool;
-use game::Deck;
-use game::ZoneCollection;
-use game::zones::ZoneName;
-use game::zones::{Location, Zone};
-use game::{ActionError, ActionResult, OkCode};
-use net::Connection;
-use entity::Dispatch;
-use entity::Trigger;
+use crate::entity::Card;
+use crate::entity::CardPool;
+use crate::game::Deck;
+use crate::game::ZoneCollection;
+use crate::game::zones::ZoneName;
+use crate::game::zones::{Location, Zone};
+use crate::game::{ActionError, ActionResult, OkCode};
+use crate::net::Connection;
+use crate::entity::Dispatch;
+use crate::entity::Trigger;
 
 // This is the players reprsentation in the game.
 // Player owns the cards and the moves.

@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 //#![allow(unused_variables)]
 #![allow(unused_imports)]
+#![feature(rust_2018_preview)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -24,7 +25,7 @@ mod net;
 mod utils;
 mod vecmap;
 
-use config::{Config, IoConfig};
+use crate::config::{Config, IoConfig};
 use log::{LevelFilter, Metadata, Record, SetLoggerError};
 use std::env;
 use std::io;

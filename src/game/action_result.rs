@@ -4,8 +4,8 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::result::Result as StdResult;
 
-use game::Deck;
-use game::Game;
+use crate::game::Deck;
+use crate::game::Game;
 use ws::Message;
 
 pub type Result = StdResult<OkCode, Error>;

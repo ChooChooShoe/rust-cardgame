@@ -1,4 +1,4 @@
-use entity::Card;
+use crate::entity::Card;
 
 const DEF_BANISHED_SIZE: usize = 0;
 const DEF_BATTLEFIELD_SIZE: usize = 5;
