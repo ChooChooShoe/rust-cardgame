@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 //#![allow(unused_variables)]
 #![allow(unused_imports)]
-#![feature(rust_2018_preview)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -11,19 +10,13 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
-extern crate bincode;
-extern crate rand;
-extern crate serde;
-extern crate serde_json;
-extern crate url;
-extern crate ws;
-
 mod config;
 mod entity;
 mod game;
 mod net;
 mod utils;
-mod vecmap;
+mod client;
+mod server;
 
 use crate::config::{Config, IoConfig};
 use log::{LevelFilter, Metadata, Record, SetLoggerError};
@@ -54,17 +47,17 @@ fn main() {
     config::set_active(Config::load_from_disk());
 
     if client {
-        //net::client::connect("ws://127.0.0.1:3012", game);
+        client::connect("ws://127.0.0.1:3012");
     } else {
         let handels = (
-            thread::spawn(move || net::server::listen("127.0.0.1:3012")),
+            thread::spawn(move || server::listen("127.0.0.1:3012")),
             thread::spawn(move || {
                 thread::sleep(Duration::from_millis(10));
-                net::client::connect("ws://127.0.0.1:3012")
+                client::connect("ws://127.0.0.1:3012")
             }),
             thread::spawn(move || {
                 thread::sleep(Duration::from_millis(30));
-                net::client::connect("ws://127.0.0.1:3012")
+                client::connect("ws://127.0.0.1:3012")
             }),
         );
         handels.0.join().unwrap();

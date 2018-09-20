@@ -78,7 +78,7 @@ impl Handler for Client {
     }
 
     fn on_open(&mut self, shake: Handshake) -> Result<()> {
-        if let Some(addr) = try!(shake.remote_addr()) {
+        if let Some(addr) = shake.remote_addr()? {
             debug!("Connection with {} now open", addr);
         }
         let connection = Connection::from_network(self.player_id, self.ws_out.clone());
@@ -144,7 +144,7 @@ impl Handler for Client {
     }
     #[inline]
     fn build_request(&mut self, url: &url::Url) -> Result<Request> {
-        let mut req = try!(Request::from_url(url));
+        let mut req = Request::from_url(url)?;
         req.add_protocol(PROTOCOL);
         req.headers_mut()
             .push((VERSION_HEADER.into(), "0.0.1".into()));

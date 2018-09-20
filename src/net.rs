@@ -1,7 +1,4 @@
-pub mod client;
 pub mod connection;
-pub mod server;
-mod settings;
 
 pub use self::connection::Connection;
 use bincode::{deserialize, serialize, ErrorKind as BincodeError};
@@ -16,9 +13,9 @@ pub enum NetworkMode {
     Both,
 }
 
-const PROTOCOL: &str = "player.rust-cardgame";
-const VERSION_HEADER: &str = "rust-cardgame-version";
-const PID_HEADER: &str = "rust-cardgame-playerid";
+pub const PROTOCOL: &str = "player.rust-cardgame";
+pub const VERSION_HEADER: &str = "rust-cardgame-version";
+pub const PID_HEADER: &str = "rust-cardgame-playerid";
 
 impl NetworkMode {
     #[inline]

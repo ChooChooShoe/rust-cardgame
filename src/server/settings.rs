@@ -2,8 +2,9 @@ use ws::Settings;
 use crate::io::{self,ErrorKind};
 use std::fs;
 use serde_json;
-use crate::config;
+use crate::config::{self,IoConfig};
 
+// Wrapper around ws::Settings to only let some be user defined.
 #[derive(Deserialize, Serialize, Debug, Clone, Copy)]
 #[serde(default)]
 pub struct ServerConfig {
@@ -37,44 +38,27 @@ const SERVER_CONFIG_FILENAME: &'static str = "./server.config";
 
 impl ServerConfig {
     pub fn to_disk(&self) -> io::Result<()> {
-        let writer = fs::File::create(SERVER_CONFIG_FILENAME)?;
-        serde_json::to_writer_pretty(writer, &self)?;
-        Ok(())
+        self.save_to_disk()
     }
     pub fn from_disk() -> Self {
         if config::active().skip_load_server_settings {
-            return Self::default()
-        }
-        match fs::File::open(SERVER_CONFIG_FILENAME) {
-            Ok(reader) => match serde_json::from_reader(reader) {
-                Ok(s) => {
-                    info!("Done loading server.config file.");
-                    s
-                },
-                Err(e) => {
-                    warn!("Invalid JSON in server config file: {}", e);
-                    warn!("Default server.config will be used.");
-                    ServerConfig::default()
-                }
-            },
-            Err(e) => {
-                warn!("IO Error when reading server config file: {}", e);
-                if e.kind() == ErrorKind::NotFound {
-                    info!("Creating new 'server.config' file.");
-                    let res = ServerConfig::default();
-                    if let Err(e) = res.to_disk() {
-                        warn!("IO Error when creating new 'server.config' file: {}",e)
-                    }
-                    info!("Done loading server.config file.");
-                    res
-                } else {
-                    warn!("Default server.config will be used.");
-                    ServerConfig::default()
-                }
-            }
+            Self::default()
+        } else {
+            ServerConfig::load_from_disk()
         }
     }
 }
+
+impl config::IoConfig<'static> for ServerConfig {
+    fn file() -> &'static str {
+        "./server.config"
+    }
+    fn filename() -> &'static str {
+        "server.config"
+    }
+}
+
+
 impl Default for ServerConfig {
     fn default() -> Self {
         let def = Settings::default();

@@ -1,8 +1,8 @@
 use crate::entity::CardPool;
 use crate::game::core::{self, Event};
 use crate::game::{Action, ActionError, Game, OkCode};
-use crate::net::server::server::Role;
-use crate::net::settings::ServerConfig;
+use crate::server::ws_server::Role;
+use crate::server::ServerConfig;
 use crate::net::{Codec, Connection, NetworkMode};
 use crate::net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
 use std::error::Error as StdError;
@@ -59,15 +59,15 @@ impl Handler for ServerHandle {
 
     fn on_open(&mut self, _shake: Handshake) -> Result<()> {
         // schedule a timeout to send a ping every 5 seconds.
-        try!(self.ws.timeout(5_000, PING));
+        self.ws.timeout(5_000, PING)?;
         // schedule a timeout to close the connection if there is no activity for 30 seconds.
-        try!(self.ws.timeout(30_000, EXPIRE));
+        self.ws.timeout(30_000, EXPIRE)?;
 
         match self.role {
             Role::Player(is_final) => {
                 if is_final {
                     // timeout for 20 ms to start the game.
-                    try!(self.ws.timeout(0_020, GAMESTART));
+                    self.ws.timeout(0_020, GAMESTART)?;
                 }
                 // create a controller and send to thread.
                 let conn = Connection::from_network(self.player_id, self.ws.clone());
@@ -137,7 +137,7 @@ impl Handler for ServerHandle {
     fn on_timeout(&mut self, event: Token) -> Result<()> {
         match event {
             PING => {
-                try!(self.ws.ping(vec![]));
+                self.ws.ping(vec![])?;
                 self.ws.timeout(5_000, PING)
             }
             EXPIRE => self.ws.close(CloseCode::Away),
@@ -164,14 +164,14 @@ impl Handler for ServerHandle {
             EXPIRE => {
                 // Cancel expire if one was scheduled and store the new one.
                 if let Some(t) = self.expire_timeout.take() {
-                    try!(self.ws.cancel(t))
+                    self.ws.cancel(t)?
                 }
                 self.expire_timeout = Some(timeout);
             }
             MULIGIN => {
                 // same as expire.
                 if let Some(t) = self.mulligin_timeout.take() {
-                    try!(self.ws.cancel(t));
+                    self.ws.cancel(t)?;
                 }
                 self.mulligin_timeout = Some(timeout);
             }
@@ -183,7 +183,7 @@ impl Handler for ServerHandle {
     #[inline]
     fn on_frame(&mut self, frame: Frame) -> Result<Option<Frame>> {
         // some activity has occurred, let's reset the expiration
-        try!(self.ws.timeout(30_000, EXPIRE));
+        self.ws.timeout(30_000, EXPIRE)?;
         Ok(Some(frame))
     }
 

@@ -1,7 +1,6 @@
 use crate::game::core::{self, Event};
 use crate::game::Game;
-use crate::net::server::shandle::ServerHandle;
-use crate::net::settings::ServerConfig;
+use crate::server::{ServerHandle,ServerConfig};
 use crate::net::NetworkMode;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
