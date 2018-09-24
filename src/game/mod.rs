@@ -19,3 +19,7 @@ pub use self::action_result::{Error as ActionError,OkCode,Result as ActionResult
 
 pub const MAX_PLAYER_COUNT: usize = 2; 
 pub const MAX_TURNS: u32 = 2; 
+
+pub type PlayerId = usize;
+pub type ClientId = usize;
+pub type CardId = usize;

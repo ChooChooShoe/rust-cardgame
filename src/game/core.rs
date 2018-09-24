@@ -16,8 +16,7 @@ pub enum Event {
     OnPlayerAction(usize, Action),
 }
 
-pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
-    assert_eq!(mode, NetworkMode::Server);
+pub fn run(recv: Receiver<Event>, mut game: Game) {
     info!("\n\nRunning core game loop. [ press Ctrl-C to exit ]\n");
 
     let mut state = State::PlayersConnecting;
@@ -34,9 +33,39 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
         // OR until the current states times out and next_on_timeout is used.
         let next_state = loop {
             match recv.recv_deadline(deadline) {
-                Ok(event) => {
-                    if let Some(next) = state.on_event(&mut game, event) {
-                        break next;
+                Ok(Event::OpenConnection(id, connection)) => {
+                    info!("Core got connection #{}", id);
+                    *game.connection(id) = connection;
+                }
+                Ok(Event::CloseConnection(id)) => {
+                    game.connection(id).on_close_connection();
+                }
+                Ok(Event::AllPlayersConnected()) => {
+                    assert!(game.network_mode().is_server());
+                    if state == State::PlayersConnecting {
+                        game.send_all_action(&Action::GameStart());
+                        break State::GameStart;
+                    }
+                }
+                Ok(Event::StopAndExit()) => break State::Done,
+                Ok(Event::OnPlayerAction(player_id, action)) => {
+                    game.queue_action(action);
+                    //TODO all actions in queue are performed with this connection
+                    //TODO watch for infinit loops.
+                    if game.network_mode().is_client() {
+                        while let Some(action) = game.pop_action() {
+                            match ClientAction::perform(action, &mut game) {
+                                Ok(code) => info!("action: {:?}", code),
+                                Err(e) => info!("action err: {:?}", e),
+                            }
+                        }
+                    } else {
+                        while let Some(action) = game.pop_action() {
+                            match ServerAction::perform(action, &mut game, player_id) {
+                                Ok(code) => info!("action: {:?}", code),
+                                Err(e) => info!("action err: {:?}", e),
+                            }
+                        }
                     }
                 }
                 Err(RecvTimeoutError::Disconnected) => break State::Done,
@@ -52,60 +81,10 @@ pub fn run(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
     }
 
     // All connections are closed after the game.
+    // When client only the connection to the server is closed.
     for conn in game.connections() {
         conn.close();
     }
-}
-
-pub fn run_client(recv: Receiver<Event>, mode: NetworkMode, mut game: Game) {
-    assert_eq!(mode, NetworkMode::Client);
-    let mut state = State::PlayersConnecting;
-
-    // loop until curent state is State::Done.
-    while state != State::Done {
-        // No Timmers for client.
-        //let state_start = Instant::now();
-        //let deadline = state_start + state.get_duration();
-
-        // Notify current state before loop.
-        state.enter(&mut game);
-
-        // Loops until the current state gets an event that will change state.
-        // OR until the current states times out and next_on_timeout is used.
-        let next_state = loop {
-            match recv.recv() {
-                Ok(Event::OpenConnection(_, connection)) => {
-                    *game.server() = connection;
-                }
-                Ok(Event::CloseConnection(_id)) => {
-                    game.server().on_close_connection();
-                    // TODO A way to do reconecting.
-                    // break State::PlayersConnecting
-                }
-                Ok(Event::AllPlayersConnected()) => (), // Not for clients.
-                Ok(Event::StopAndExit()) => {
-                    break State::Done
-                }
-                Ok(Event::OnPlayerAction(_player_id, action)) => {
-                    game.queue_action(action);
-                    //TODO all actions in queue are performed with this connection
-                    //TODO watch for infinit loops.
-                    while let Some(action) = game.pop_action() {
-                        match ClientAction::perform(action, &mut game) {
-                            Ok(code) => info!("action: {:?}", code),
-                            Err(e) => info!("action: {:?}", e),
-                        }
-                    }
-                }
-                Err(RecvError) => break State::Done,
-            }
-        };
-        // Recv loop ended. Notify current state. Then switch states.
-        state.exit(&mut game);
-        state = state.transition(&mut game, next_state);
-    }
-
-    game.server().close();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,59 +139,26 @@ impl State {
         }
     }
 
-    // Prossesing for a given event.
-    // Returns the next state if a state transistion is needed.
-    // Returning None will keep looping on_event() untill a State is returned or get_duration() is exceded.
-    fn on_event(&mut self, game: &mut Game, event: Event) -> Option<State> {
-        match event {
-            Event::OpenConnection(id, connection) => {
-                info!("Core got connection for player #{}", id);
-                *game.connection(id) = connection;
-                None
-            }
-            Event::CloseConnection(id) => {
-                game.connection(id).on_close_connection();
-                None
-            }
-            Event::AllPlayersConnected() => {
-                if let State::PlayersConnecting = self {
-                    Some(State::GameStart)
-                } else {
-                    None
-                }
-            }
-            Event::StopAndExit() => Some(State::Done),
-            Event::OnPlayerAction(player_id, action) => {
-                game.queue_action(action);
-                //TODO all actions in queue are performed with this connection
-                //TODO watch for infinit loops.
-                while let Some(action) = game.pop_action() {
-                    match ServerAction::perform(action, game, player_id) {
-                        Ok(code) => info!("action: {:?}", code),
-                        Err(e) => info!("action: {:?}", e),
-                    }
-                }
-                None
-            }
-        }
-    }
     // Consumes self and next_state to return the next current state.
     // Allows for non-standard transtions.
     fn transition(self, game: &mut Game, next_state: State) -> State {
         match (self, next_state) {
             (State::Done, _) => return State::Done,
-            (_, State::GameStart) => {
-                game.send_all_action(&Action::GameStart());
-                game.shuffle_decks();
-                game.run_mulligan();
-            }
             (_from, _to) => (),
         }
         next_state
     }
 
-    fn enter(&mut self, _game: &mut Game) {
-        info!("Now entering state {:?}", self)
+    fn enter(&mut self, game: &mut Game) {
+        info!("Now entering state {:?}", self);
+        match self {
+            State::GameStart => {
+                game.send_all_action(&Action::GameStart());
+                game.shuffle_decks();
+                game.run_mulligan();
+            }
+            _ => {}
+        }
     }
 
     fn exit(&mut self, _game: &mut Game) {}
@@ -250,20 +196,5 @@ impl State {
             State::EndGame(_) => State::Done,
             State::Done => panic!("State::Done can not have a next() state."),
         }
-    }
-}
-
-struct StepLoop {
-    next: Option<State>,
-}
-
-impl StepLoop {
-    fn new() -> StepLoop {
-        StepLoop {
-            next: Some(State::GameStart),
-        }
-    }
-    fn from(state: State) -> StepLoop {
-        StepLoop { next: Some(state) }
     }
 }

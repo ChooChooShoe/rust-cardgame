@@ -2,6 +2,7 @@ use bincode::{deserialize, serialize, ErrorKind};
 use crate::game::action_result::{Error, OkCode, Result};
 use crate::game::Deck;
 use crate::game::Game;
+use crate::game::{CardId, ClientId, PlayerId};
 use crate::net::Connection;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
@@ -13,14 +14,14 @@ use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Action {
     Text(String),
-    ChangePlayerId(usize,usize),
+    ChangePlayerId(usize, usize),
     Empty,
     Invalid,
     Error,
     Ok,
     DrawCardKnown(usize, usize),
     DrawCardAnon(usize, usize),
-    SetDeck(usize, Deck),
+    SetDeck(PlayerId, Deck),
 
     // Player stated actions
     SelfEndTurn,
@@ -39,7 +40,10 @@ pub enum Action {
     MuliginResult { swap: bool },
 
     // Action from other actions
-    StartNextTurn()
+    StartNextTurn(),
+
+    // Client sent requests.
+    RequestStateChange,
 }
 pub trait ServerAction {
     fn perform(self, game: &mut Game, client_id: usize) -> Result;
@@ -63,9 +67,13 @@ impl ServerAction for Action {
                 game.queue_action(Action::EndTurn(0));
                 Ok(OkCode::Nothing)
             }
-            Action::SetDeck(_pid, _deck) => {
-                //game.board_lock().player_mut(pid).set_deck(deck);
-                Ok(OkCode::Nothing)
+            Action::SetDeck(player_id, deck) => {
+                if deck.is_valid() {
+                    game.player(player_id).set_deck(deck);
+                    Ok(OkCode::Done)
+                } else {
+                    Err(Error::Generic)
+                }
             }
             Action::StartNextTurn() => {
                 info!("Starting Turn");
@@ -86,7 +94,7 @@ impl ClientAction for Action {
     fn perform(self, game: &mut Game) -> Result {
         match self {
             Action::GameStart() => {
-                game.server().send(&Action::DrawCardAnon(0,3)).unwrap();
+                game.server().send(&Action::DrawCardAnon(0, 3)).unwrap();
                 Ok(OkCode::Nothing)
             }
             _ => Ok(OkCode::Nothing),
@@ -95,7 +103,4 @@ impl ClientAction for Action {
     fn undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
-}
-impl Action {
-
 }

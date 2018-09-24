@@ -8,7 +8,6 @@ use crate::game::Player;
 pub struct Deck {
     name: String,
     cards: Vec<Entry>,
-    valid: bool,
 }
 impl Deck {
     pub fn new() -> Deck {
@@ -25,7 +24,6 @@ impl Deck {
                 Entry::new("auto_gen_card_002", 8),
                 Entry::new("auto_gen_card_001", 9),
             ],
-            valid: true,
         }
     }
     pub fn cards_for_zone(&self, zone: ZoneName) -> &[Entry] {
@@ -37,12 +35,8 @@ impl Deck {
     pub fn name(&self) -> &str {
         &self.name
     }
-    pub fn valid(&self) -> bool {
-        self.valid
-    }
-    pub fn recheck_is_valid(&mut self) -> bool {
-        self.valid = true;
-        true
+    pub fn is_valid(&self) -> bool {
+        self.cards.len() > 0
     }
 }
 

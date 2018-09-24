@@ -1,7 +1,7 @@
 use crate::game::core::{self, Event};
 use crate::game::Game;
-use crate::server::{ServerHandle,ServerConfig};
 use crate::net::NetworkMode;
+use crate::server::{ServerConfig, ServerHandle};
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Sender as TSender;
@@ -12,7 +12,7 @@ use ws::{Builder, Factory};
 pub fn listen<A: ToSocketAddrs>(ip: A) {
     let settings = ServerConfig::from_disk().into();
     let (send, recv) = channel();
-    let thread_handle = thread::spawn(move || core::run(recv, NetworkMode::Server, Game::new(2)));
+    let thread_handle = thread::spawn(move || core::run(recv, Game::new(2, NetworkMode::Server)));
 
     let factory = ServerFactory {
         sender: send,
@@ -25,9 +25,12 @@ pub fn listen<A: ToSocketAddrs>(ip: A) {
         .build(factory)
         .unwrap();
 
-    ws.listen(ip).unwrap();
+    ws.listen(ip)
+        .expect("Couldn't listen or connection panic! for server.");
+    
     info!("Waiting for server game thread to close.");
     thread_handle.join().unwrap();
+    info!("Server Done!");
 }
 struct ServerFactory {
     sender: TSender<Event>,

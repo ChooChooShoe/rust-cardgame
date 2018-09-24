@@ -3,7 +3,7 @@ use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
 use crate::game::action::Action;
 use crate::game::{Deck, Player, Zone, ZoneCollection};
-use crate::net::Connection;
+use crate::net::{Connection,NetworkMode};
 use std::collections::HashMap;
 //use tags::*;
 use rand::{thread_rng, Rng};
@@ -17,10 +17,11 @@ pub struct Game {
     pub effects: VecDeque<Effect>,
     pub action_queue: VecDeque<Action>,
     active_player_id: usize,
+    network_mode: NetworkMode,
 }
 
 impl Game {
-    pub fn new(player_count: usize) -> Game {
+    pub fn new(player_count: usize, network_mode: NetworkMode) -> Game {
         let mut players = Vec::with_capacity(player_count);
         let mut connections = Vec::with_capacity(player_count);
         for x in 0..player_count {
@@ -34,17 +35,22 @@ impl Game {
             battlefield: Vec::new(),
             effects: VecDeque::new(),
             action_queue: VecDeque::new(),
+            network_mode,
         }
+    }
+    /// Gets which of Server, Client, or Both that this game is running as.
+    pub fn network_mode(&self) -> NetworkMode {
+        self.network_mode
     }
 
     pub fn connections(&mut self) -> &mut [Connection] {
         &mut self.connections
     }
-    // Gets the server's connection for player with id.
+    /// Gets the server's connection for player with id.
     pub fn connection(&mut self, id: usize) -> &mut Connection {
         &mut self.connections[id]
     }
-    // Gets connection to server for the client.
+    /// Gets connection to server for the client.
     pub fn server(&mut self) -> &mut Connection {
         &mut self.connections[0]
     }

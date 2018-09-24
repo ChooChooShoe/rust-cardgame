@@ -17,16 +17,13 @@ use ws::{
 
 pub fn connect<U: Borrow<str>>(url: U) {
     let (send, recv) = channel();
-    let client_core_handle =
-        thread::spawn(move || core::run_client(recv, NetworkMode::Client, Game::new(2)));
+    let thread_handle = thread::spawn(move || core::run(recv, Game::new(2, NetworkMode::Client)));
 
     ws::connect(url, |out: WsSender| Client::new(out, send.clone()))
         .expect("Couldn't begin connection to remote server and/or create a local client");
 
     info!("Waiting for client core to close.");
-    client_core_handle
-        .join()
-        .expect("Couldn't join on client core thread");
+    thread_handle.join().unwrap();
     info!("Client Done!");
 }
 
