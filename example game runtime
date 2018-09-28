@@ -1,0 +1,25 @@
+server _ -> waiting
+client0 connect
+server setup_0
+client1 connect
+server setup_1
+
+server waiting -> game_setup
+c0 set_deck
+c1 set_deck
+c0 ready
+c1 ready
+
+s game_setup -> game_start
+
+s p0_turn
+c0 any actions
+s any responces
+s timeout -or- c0 turn_done
+
+s p1_turn
+c1 any actions
+s any responces
+s timeout -or- c1 turn_done
+
+loop

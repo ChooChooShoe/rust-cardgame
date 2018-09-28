@@ -29,6 +29,7 @@ fn main() {
     logger_init(LevelFilter::Info).unwrap();
 
     info!("Card Game Engine");
+    info!("MOTD: {}", config::active().motd);
     // info!("VAlue: {}", std::mem::size_of::<serde_json::Value>());
     // info!("Val: {}", std::mem::size_of::<entity::TagVal>());
     // info!("Val: {}", std::mem::size_of::<Option<entity::TagVal>>());
@@ -44,7 +45,7 @@ fn main() {
             client = true;
         }
     }
-    config::set_active(Config::load_from_disk());
+    // config::set_active(Config::load_from_disk());
 
     if client {
         client::connect("ws://127.0.0.1:3012");

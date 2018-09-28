@@ -3,8 +3,9 @@ use crate::entity::Card;
 use crate::entity::CardPool;
 use crate::game::zones::ZoneName;
 use crate::game::Player;
+use std::fmt;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Deck {
     name: String,
     cards: Vec<Entry>,
@@ -37,6 +38,11 @@ impl Deck {
     }
     pub fn is_valid(&self) -> bool {
         self.cards.len() > 0
+    }
+}
+impl fmt::Debug for Deck {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Deck {{ name: \"{}\", cards_len: {} }}", self.name, self.cards.len())
     }
 }
 

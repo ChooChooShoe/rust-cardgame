@@ -1,9 +1,45 @@
-use crate::game::Action;
-use crate::game::{Player, Zone};
+use crate::game::{Action, Player, Zone};
 use crate::net::Codec;
+use std::error::Error as StdError;
+use std::fmt;
 use std::io;
+use std::result::Result as StdResult;
 use std::time::Instant;
-use ws::{Sender as WsSender,CloseCode};
+use ws::{CloseCode, Sender as WsSender};
+
+pub type Result = StdResult<(), Error>;
+/// A simple wrapped network error
+#[derive(Debug)]
+pub enum Error {
+    Internal,
+    Encoding(usize),
+    Sending(usize),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(cause) = self.cause() {
+            write!(f, "{}: {}", self.description(), cause.description())
+        } else {
+            write!(f, "{}", self.description())
+        }
+    }
+}
+
+impl StdError for Error {
+    fn description(&self) -> &str {
+        match self {
+            Error::Internal => "Internal Application Error",
+            Error::Encoding(_) => "Encoding Error",
+            Error::Sending(_) => "Sending Error",
+        }
+    }
+    fn cause(&self) -> Option<&StdError> {
+        match self {
+            _ => None,
+        }
+    }
+}
 
 pub struct Connection {
     player_id: usize,
@@ -29,9 +65,8 @@ impl Connection {
         self.player_id = player_id
     }
 
-    pub fn send(&mut self, action: &Action) -> Result<(), ()> {
-        self.inner.send(action);
-        Ok(())
+    pub fn send(&mut self, action: &Action) -> Result {
+        self.inner.send(action)
     }
 
     pub fn close(&self) {
@@ -82,11 +117,15 @@ impl Inner {
 
         None
     }
-    pub fn send(&mut self, action: &Action) {
-        // TODO make this not as bad.
+    pub fn send(&mut self, action: &Action) -> Result {
+        // TODO errors are not boxed.
         match self {
-            Inner::WebSocetPlayer(sender) => sender.send(action.encode().unwrap()).unwrap(),
-            Inner::EmptyPlayer() => (),
+            Inner::WebSocetPlayer(sender) => {
+                let message = action.encode().map_err(|e| Error::Encoding(0))?;
+                Ok(sender.send(message).map_err(|e| Error::Sending(1))?)
+            }
+
+            Inner::EmptyPlayer() => Ok(()),
         }
     }
 }

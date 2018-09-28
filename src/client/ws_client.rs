@@ -1,6 +1,5 @@
 use crate::game::core::{self, Event};
-use crate::game::Action;
-use crate::game::Game;
+use crate::game::{Game,PlayerId,Action};
 use crate::net::{Codec, Connection, NetworkMode};
 use crate::net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
 use std::borrow::Borrow;
@@ -30,7 +29,7 @@ pub fn connect<U: Borrow<str>>(url: U) {
 pub struct Client {
     ws_out: WsSender,
     thread_out: TSender<Event>,
-    player_id: usize,
+    player_id: PlayerId,
 }
 
 impl Client {
@@ -52,6 +51,7 @@ fn thread_err<E: StdError>(e: E) -> Error {
 impl Handler for Client {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let action = Action::decode(&msg)?;
+        info!("Client #{} got {:?}", self.player_id, action);
 
         match action {
             Action::ChangePlayerId(_from, to) => {
@@ -64,10 +64,6 @@ impl Handler for Client {
             }
             _ => {
                 // Any other action is sent to core thread.
-                info!(
-                    "Client #{} received general action {:?}",
-                    self.player_id, action
-                );
                 let ev = Event::OnPlayerAction(self.player_id as usize, action);
                 self.thread_out.send(ev).map_err(thread_err)
             }

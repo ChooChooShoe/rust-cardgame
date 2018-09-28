@@ -1,10 +1,10 @@
 use crate::entity::CardPool;
 use crate::game::core::{self, Event};
-use crate::game::{Action, ActionError, Game, OkCode};
-use crate::server::ws_server::Role;
-use crate::server::ServerConfig;
+use crate::game::{Action, ActionError, Game, OkCode, PlayerId};
 use crate::net::{Codec, Connection, NetworkMode};
 use crate::net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
+use crate::server::ws_server::Role;
+use crate::server::ServerConfig;
 use std::error::Error as StdError;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::{channel, Sender as TSender};
@@ -19,13 +19,18 @@ use ws::{
 pub struct ServerHandle {
     pub ws: WsSender,
     core: TSender<Event>,
-    pub player_id: usize,
+    pub player_id: PlayerId,
     role: Role,
     expire_timeout: Option<Timeout>,
     mulligin_timeout: Option<Timeout>,
 }
 impl ServerHandle {
-    pub fn new(ws: WsSender, core: TSender<Event>, player_id: usize, role: Role) -> ServerHandle {
+    pub fn new(
+        ws: WsSender,
+        core: TSender<Event>,
+        player_id: PlayerId,
+        role: Role,
+    ) -> ServerHandle {
         ServerHandle {
             ws,
             core,
@@ -95,7 +100,7 @@ impl Handler for ServerHandle {
     /// Called on incoming messages.
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let action = Action::decode(&msg)?;
-        info!("Received command {:?}", action);
+        info!("Server #{} got {:?}", self.player_id, action);
 
         match action {
             Action::ChangePlayerId(_from, _to) => {
@@ -104,17 +109,13 @@ impl Handler for ServerHandle {
                 Ok(())
             }
             Action::Text(t) => {
-                info!("Server recived chat from player #{}: {}", self.player_id, t);
+                info!("Chat: Player #{} says {}", self.player_id, t);
                 self.ws
                     .send(Action::Text(String::from("You know im a computer, right?")))
             }
             _ => {
                 // Any other action is sent to core thread.
-                info!(
-                    "Server received general action {:?} from player #{}",
-                    action, self.player_id
-                );
-                let ev = Event::OnPlayerAction(self.player_id as usize, action);
+                let ev = Event::OnPlayerAction(self.player_id, action);
                 self.core.send(ev).map_err(thread_err)
             }
         }
@@ -142,15 +143,14 @@ impl Handler for ServerHandle {
             }
             EXPIRE => self.ws.close(CloseCode::Away),
             MULIGIN => {
-                let ev = Event::OnPlayerAction(
-                    self.player_id as usize,
-                    Action::MuliginResult { swap: false },
-                );
+                let ev =
+                    Event::OnPlayerAction(self.player_id, Action::MuliginResult { swap: false });
                 self.core.send(ev).map_err(thread_err)
             }
-            GAMESTART => {
-                self.core.send(Event::AllPlayersConnected()).map_err(thread_err)
-            }
+            GAMESTART => self
+                .core
+                .send(Event::AllPlayersConnected())
+                .map_err(thread_err),
             _ => Err(Error::new(
                 ErrorKind::Internal,
                 "Invalid timeout token encountered!",

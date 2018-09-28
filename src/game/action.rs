@@ -14,14 +14,13 @@ use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Action {
     Text(String),
-    ChangePlayerId(usize, usize),
+    ChangePlayerId(PlayerId, PlayerId),
     Empty,
     Invalid,
     Error,
     Ok,
     DrawCardKnown(usize, usize),
     DrawCardAnon(usize, usize),
-    SetDeck(PlayerId, Deck),
 
     // Player stated actions
     SelfEndTurn,
@@ -30,14 +29,23 @@ pub enum Action {
     DeclareAttack(u64, u64),
 
     // Player responses
-    EndTurn(usize),
+    EndTurn(PlayerId),
 
     // Sent from core
     GameStart(),
     MuliginStart(),
     MuliginEnd(),
     // from server/client
-    MuliginResult { swap: bool },
+    MuliginResult {
+        swap: bool,
+    },
+
+    /// Sent from server when all players are connected and game is being setup.
+    BeginGameSetup(),
+    /// Sent from client to tell server what deck to use.
+    SetDeck(Deck),
+    /// Sent from client when setup is done.
+    ReadyToPlay(),
 
     // Action from other actions
     StartNextTurn(),
@@ -45,62 +53,80 @@ pub enum Action {
     // Client sent requests.
     RequestStateChange,
 }
-pub trait ServerAction {
-    fn perform(self, game: &mut Game, client_id: usize) -> Result;
-    fn undo(self, game: &mut Game) -> Result;
-}
-pub trait ClientAction {
-    fn perform(self, game: &mut Game) -> Result;
-    fn undo(self, game: &mut Game) -> Result;
-}
-// Code for the server when a client want to do an action
-impl ServerAction for Action {
-    fn perform(self, game: &mut Game, _client_id: usize) -> Result {
+
+impl Action {
+    pub fn perform(self, game: &mut Game, player_id: PlayerId) -> Result {
+        if game.network_mode().is_client() {
+            self.client_perform(game) // player_id is 0 for client
+        } else {
+            self.server_perform(game, player_id)
+        }
+    }
+    pub fn undo(self, game: &mut Game, player_id: PlayerId) -> Result {
+        Err(Error::NotSupported)
+    }
+
+    fn common_perform(self, game: &mut Game, player_id: PlayerId) -> Result {
+        Err(Error::NotSupported)
+    }
+
+    fn server_perform(self, game: &mut Game, player_id: PlayerId) -> Result {
         match self {
             Action::EndTurn(p) => {
                 game.players[p].draw_x_cards(1);
                 game.queue_action(Action::StartNextTurn());
-                Ok(OkCode::Nothing)
+                Ok(OkCode::ChangeState)
             }
             Action::DrawCardAnon(pid, amount) => {
                 game.players[pid].draw_x_cards(amount);
                 game.queue_action(Action::EndTurn(0));
-                Ok(OkCode::Nothing)
+                Ok(OkCode::Continue)
             }
-            Action::SetDeck(player_id, deck) => {
+            Action::SetDeck(deck) => {
                 if deck.is_valid() {
                     game.player(player_id).set_deck(deck);
                     Ok(OkCode::Done)
                 } else {
-                    Err(Error::Generic)
+                    Err(Error::InvalidParamaters)
                 }
             }
             Action::StartNextTurn() => {
                 info!("Starting Turn");
                 //TODO not loop forever.
                 //game.queue_action(Action::EndTurn(0));
-                Ok(OkCode::Nothing)
+                Ok(OkCode::Done)
             }
             Action::GameStart() => Err(Error::NotSupported),
-            _ => Err(Error::NotSupported),
+            Action::ReadyToPlay() => {
+                game.ready_players.insert(player_id);
+                if game.ready_players.len() == game.players().len() {
+                    // Change state when all players are ready.
+                    Ok(OkCode::ChangeState) 
+                } else {
+                    Ok(OkCode::Done)
+                }
+            }
+            _ => self.common_perform(game, player_id),
         }
     }
-    fn undo(self, _game: &mut Game) -> Result {
+    fn server_undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
-}
-// Code for the client when the server wants us to act.
-impl ClientAction for Action {
-    fn perform(self, game: &mut Game) -> Result {
+    fn client_perform(self, game: &mut Game) -> Result {
         match self {
             Action::GameStart() => {
                 game.server().send(&Action::DrawCardAnon(0, 3)).unwrap();
-                Ok(OkCode::Nothing)
+                Ok(OkCode::Done)
             }
-            _ => Ok(OkCode::Nothing),
+            Action::BeginGameSetup() => {
+                game.server().send(&Action::SetDeck(Deck::new()))?;
+                game.server().send(&Action::ReadyToPlay())?;
+                Ok(OkCode::Done)
+            }
+            _ => self.common_perform(game, 0),
         }
     }
-    fn undo(self, _game: &mut Game) -> Result {
+    fn client_undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
 }

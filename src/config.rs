@@ -9,16 +9,22 @@ use std::sync::Mutex;
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct Config {
+    pub motd: String,
     pub use_default_config: bool,
     pub skip_load_server_settings: bool,
     pub server_settings_file: String,
+    pub player_count: usize,
+    pub turn_limit: u32,
 }
 impl Default for Config {
     fn default() -> Config {
         Config {
+            motd: String::from("Hello World!"),
             use_default_config: true,
             skip_load_server_settings: true,
             server_settings_file: String::from("./server.config"),
+            player_count: 2,
+            turn_limit: 3,
         }
     }
 }
@@ -83,16 +89,21 @@ impl IoConfig<'static> for Config {
 }
 
 lazy_static! {
-    static ref CONFIG: Mutex<Arc<Config>> = Mutex::new(Arc::new(Config::default()));
+    static ref STATIC_CONFIG: Config = Config::load_from_disk();
+    //static ref CONFIG: Mutex<Arc<Config>> = Mutex::new(Arc::new(Config::default()));
+}
+/// Gets the static never changing Config.
+pub fn active() -> &'static Config {
+    &STATIC_CONFIG
 }
 
-// Gets the current active runtime config.
-pub fn active() -> Arc<Config> {
-    CONFIG.lock().unwrap().clone()
-}
-// Sets the new active config. Other configs are not changed unless active() is called again.
-pub fn set_active(config: Config) -> Arc<Config> {
-    let ret = Arc::new(config);
-    *CONFIG.lock().unwrap() = ret.clone();
-    ret
-}
+// /// Gets the current active runtime config.
+// pub fn active() -> Arc<Config> {
+    // CONFIG.lock().unwrap().clone()
+// }
+// /// Sets the new active config. Other configs are not changed unless active() is called again.
+// pub fn set_active(config: Config) -> Arc<Config> {
+    // let ret = Arc::new(config);
+    // *CONFIG.lock().unwrap() = ret.clone();
+    // ret
+// }

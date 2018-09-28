@@ -1,14 +1,12 @@
 use crate::entity::cardpool::CardPool;
 use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
-use crate::game::action::Action;
-use crate::game::{Deck, Player, Zone, ZoneCollection};
-use crate::net::{Connection,NetworkMode};
-use std::collections::HashMap;
-//use tags::*;
+use crate::game::{Action, ActionResult, Deck, Player, PlayerId, Zone, ZoneCollection};
+use crate::net::{Connection, NetResult, NetworkMode};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::collections::{HashMap, HashSet};
 
 pub struct Game {
     pub players: Vec<Player>,
@@ -18,6 +16,7 @@ pub struct Game {
     pub action_queue: VecDeque<Action>,
     active_player_id: usize,
     network_mode: NetworkMode,
+    pub ready_players: HashSet<PlayerId>,
 }
 
 impl Game {
@@ -36,6 +35,7 @@ impl Game {
             effects: VecDeque::new(),
             action_queue: VecDeque::new(),
             network_mode,
+            ready_players: HashSet::new(),
         }
     }
     /// Gets which of Server, Client, or Both that this game is running as.
@@ -102,13 +102,13 @@ impl Game {
     pub fn send_all_action(&mut self, action: &Action) {
         for conn in self.connections() {
             match conn.send(action) {
-                Ok(()) => (),
-                Err(()) => break,
+                Ok(_) => (),
+                Err(_) => break,
             }
         }
     }
     // Sends a game action to the player over their connection.
-    pub fn send_action(&mut self, client_id: usize, action: &Action) {
-        self.connection(client_id).send(action).unwrap_or(());
+    pub fn send_action(&mut self, client_id: usize, action: &Action) -> NetResult {
+        self.connection(client_id).send(action)
     }
 }

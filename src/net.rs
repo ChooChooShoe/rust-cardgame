@@ -1,10 +1,12 @@
 pub mod connection;
-
 pub use self::connection::Connection;
+pub use self::connection::Result as NetResult;
+pub use self::connection::Error as NetError;
+pub use ws::{Error as WsError, ErrorKind as WsErrorKind, Message as WsMessage};
+
 use bincode::{deserialize, serialize, ErrorKind as BincodeError};
 use crate::game::action::Action;
 use std::convert::From;
-use ws::{Error as WsError, ErrorKind as WsErrorKind, Message as WsMessage};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NetworkMode {
