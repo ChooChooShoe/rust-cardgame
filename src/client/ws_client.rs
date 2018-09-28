@@ -64,7 +64,7 @@ impl Handler for Client {
             }
             _ => {
                 // Any other action is sent to core thread.
-                let ev = Event::OnPlayerAction(self.player_id as usize, action);
+                let ev = Event::OnPlayerAction(self.player_id, action);
                 self.thread_out.send(ev).map_err(thread_err)
             }
         }

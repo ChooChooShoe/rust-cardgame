@@ -91,7 +91,7 @@ fn process_actions(game: &mut Game, player_id: PlayerId) -> bool {
     }
     false
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Waiting,
     GameSetup,
@@ -100,7 +100,7 @@ pub enum State {
     Done(GameResults),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
     Start,
     Draw,
@@ -117,7 +117,7 @@ impl Phase {
         }
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum GameResults {
     PlayerWin(PlayerId),
     OutOfTurns,
@@ -157,17 +157,28 @@ impl State {
         info!("Now entering state {:?}", self);
         match self {
             State::GameStart => {
-                game.send_all_action(&Action::GameStart());
-                game.shuffle_decks();
-                game.run_mulligan();
-                game.queue_action(Action::StartNextTurn());
+                if game.network_mode().is_server() {
+                    game.send_all_action(&Action::GameStart());
+                    game.shuffle_decks();
+                    game.run_mulligan();
+                    game.queue_action(Action::StartNextTurn());
+                }
             }
             State::GameSetup => {
                 if game.network_mode().is_server() {
                     game.send_all_action(&Action::BeginGameSetup());
                 }
             }
-            _ => {}
+            State::PlayerTurn(player_id, turn, phase) => {
+                if game.network_mode().is_server() {
+                    let act = &Action::StartPlayerTurn(*player_id, *turn, *phase);
+                    for player in game.connections() {
+                        player.send(act).unwrap();
+                    }
+                }
+            }
+            State::Waiting => (),
+            State::Done(_) => unreachable!(),
         }
     }
 

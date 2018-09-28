@@ -1,3 +1,4 @@
+use crate::game::core::Phase;
 use bincode::{deserialize, serialize, ErrorKind};
 use crate::game::action_result::{Error, OkCode, Result};
 use crate::game::Deck;
@@ -47,6 +48,8 @@ pub enum Action {
     /// Sent from client when setup is done.
     ReadyToPlay(),
 
+    /// The turn now belongs to this player
+    StartPlayerTurn(PlayerId, u32, Phase),
     // Action from other actions
     StartNextTurn(),
 
@@ -57,7 +60,7 @@ pub enum Action {
 impl Action {
     pub fn perform(self, game: &mut Game, player_id: PlayerId) -> Result {
         if game.network_mode().is_client() {
-            self.client_perform(game) // player_id is 0 for client
+            self.client_perform(game, player_id) // player_id is *not* always 0
         } else {
             self.server_perform(game, player_id)
         }
@@ -67,6 +70,7 @@ impl Action {
     }
 
     fn common_perform(self, game: &mut Game, player_id: PlayerId) -> Result {
+        warn!("No implementation from {:?} w/ player #{}", self, player_id);
         Err(Error::NotSupported)
     }
 
@@ -112,7 +116,7 @@ impl Action {
     fn server_undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
-    fn client_perform(self, game: &mut Game) -> Result {
+    fn client_perform(self, game: &mut Game, player_id: PlayerId) -> Result {
         match self {
             Action::GameStart() => {
                 game.server().send(&Action::DrawCardAnon(0, 3)).unwrap();
@@ -123,7 +127,7 @@ impl Action {
                 game.server().send(&Action::ReadyToPlay())?;
                 Ok(OkCode::Done)
             }
-            _ => self.common_perform(game, 0),
+            _ => self.common_perform(game, player_id),
         }
     }
     fn client_undo(self, _game: &mut Game) -> Result {
