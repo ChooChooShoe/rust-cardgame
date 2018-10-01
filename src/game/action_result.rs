@@ -1,11 +1,10 @@
 use bincode::*;
+use crate::game::{Deck, Game};
+use crate::net::connection::Error as NetError;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
 use std::fmt;
 use std::result::Result as StdResult;
-use crate::net::connection::Error as NetError;
-use crate::game::Deck;
-use crate::game::Game;
 use ws::Message;
 
 pub type Result = StdResult<OkCode, Error>;
@@ -46,8 +45,7 @@ pub enum Error {
     MissingParamaters,
 }
 
-impl Error {
-}
+impl Error {}
 
 impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

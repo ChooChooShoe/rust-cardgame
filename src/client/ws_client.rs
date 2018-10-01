@@ -55,8 +55,11 @@ impl Handler for Client {
 
         match action {
             Action::ChangePlayerId(_from, to) => {
+                let a = Action::ChangePlayerId(self.player_id, to);
                 self.player_id = to;
-                Ok(())
+                // still passed to the core.
+                let ev = Event::OnPlayerAction(self.player_id, a);
+                self.thread_out.send(ev).map_err(thread_err)
             }
             Action::Text(t) => {
                 info!("Received chat: {}", t);

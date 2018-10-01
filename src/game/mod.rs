@@ -7,6 +7,7 @@ pub mod action_result;
 pub mod deck;
 pub mod player;
 pub mod script;
+pub mod turn;
 
 pub use self::script::GameScript;
 pub use self::player::Player;
@@ -16,6 +17,7 @@ pub use self::zones::Zone;
 pub use self::deck::{Deck,Entry as DeckEntry};
 pub use self::action::{Action};
 pub use self::action_result::{Error as ActionError,OkCode,Result as ActionResult};
+pub use self::turn::{Turn,Phase};
 
 pub const MAX_PLAYER_COUNT: usize = 2; 
 pub const MAX_TURNS: u32 = 2; 

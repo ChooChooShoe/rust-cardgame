@@ -1,4 +1,4 @@
-use crate::game::{Action, Player, Zone};
+use crate::game::{Action, Player, Zone, Turn, Phase, Game};
 use crate::net::Codec;
 use std::error::Error as StdError;
 use std::fmt;
@@ -65,7 +65,7 @@ impl Connection {
         self.player_id = player_id
     }
 
-    pub fn send(&mut self, action: &Action) -> Result {
+    pub fn send(&self, action: &Action) -> Result {
         self.inner.send(action)
     }
 
@@ -84,6 +84,33 @@ impl Connection {
     pub fn on_close_connection(&mut self) {
         self.inner = Inner::EmptyPlayer();
     }
+
+    pub fn do_turn(game: &mut Game, turn: Turn) -> Option<u64> {
+        info!("Player #{} turn {} start.", game.local_player, turn.turn_count());
+
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(_num_bytes) => {
+                Connection::handle_user_input(game, input.trim().split(" ").collect());
+            }
+            Err(error) => println!("Read input line error: {}", error),
+        }
+
+        None
+    }
+
+    pub fn handle_user_input(game: &mut Game, args: Vec<&str>) {
+        match args.len() {
+            0 => println!("No command entered"),
+            1 => match args[0] {
+                "draw" => {
+                    game.active_player().draw_x_cards(1);
+                }
+                _ => println!("Unknown command: {:?}", args),
+            },
+            _ => println!("Unknown command: {:?}", args),
+        }
+    }
 }
 
 enum Inner {
@@ -92,32 +119,7 @@ enum Inner {
 }
 
 impl Inner {
-    pub fn handle_user_input(&mut self, player: &mut Player, args: Vec<&str>) {
-        match args.len() {
-            0 => println!("No command entered"),
-            1 => match args[0] {
-                "draw" => {
-                    player.draw_x_cards(1);
-                }
-                _ => println!("Unknown command: {:?}", args),
-            },
-            _ => println!("Unknown command: {:?}", args),
-        }
-    }
-    pub fn do_turn(&mut self, player: &mut Player, _turn_count: usize) -> Option<u64> {
-        //info!("Player #{} turn {} start.", self.player_index, turn_count);
-
-        let mut input = String::new();
-        match io::stdin().read_line(&mut input) {
-            Ok(_num_bytes) => {
-                self.handle_user_input(player, input.trim().split(" ").collect());
-            }
-            Err(error) => println!("Read input line error: {}", error),
-        }
-
-        None
-    }
-    pub fn send(&mut self, action: &Action) -> Result {
+    pub fn send(&self, action: &Action) -> Result {
         // TODO errors are not boxed.
         match self {
             Inner::WebSocetPlayer(sender) => {

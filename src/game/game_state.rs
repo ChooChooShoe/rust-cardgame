@@ -13,10 +13,11 @@ pub struct Game {
     pub connections: Vec<Connection>,
     pub battlefield: Vec<Card>,
     pub effects: VecDeque<Effect>,
-    pub action_queue: VecDeque<Action>,
+    pub action_queue: VecDeque<(PlayerId,Action)>,
     active_player_id: usize,
     network_mode: NetworkMode,
     pub ready_players: HashSet<PlayerId>,
+    pub local_player: PlayerId,
 }
 
 impl Game {
@@ -36,6 +37,7 @@ impl Game {
             action_queue: VecDeque::new(),
             network_mode,
             ready_players: HashSet::new(),
+            local_player: 0,
         }
     }
     /// Gets which of Server, Client, or Both that this game is running as.
@@ -51,8 +53,8 @@ impl Game {
         &mut self.connections[id]
     }
     /// Gets connection to server for the client.
-    pub fn server(&mut self) -> &mut Connection {
-        &mut self.connections[0]
+    pub fn server(&self) -> &Connection {
+        &self.connections[0]
     }
     pub fn players(&mut self) -> &mut [Player] {
         &mut self.players
@@ -74,10 +76,10 @@ impl Game {
         &mut self.battlefield
     }
 
-    pub fn queue_action(&mut self, action: Action) {
-        self.action_queue.push_back(action)
+    pub fn queue_action(&mut self, player_id: PlayerId, action: Action) {
+        self.action_queue.push_back((player_id, action))
     }
-    pub fn pop_action(&mut self) -> Option<Action> {
+    pub fn pop_action(&mut self) -> Option<(PlayerId, Action)> {
         self.action_queue.pop_front()
     }
     pub fn is_action_queue_empty(&self) -> bool {
