@@ -64,11 +64,14 @@ impl<'a> Trigger<'a> {
     }
 }
 use std::sync::RwLock;
+
+type Callback = Box<Fn(&mut Trigger) + 'static + Sync + Send>;
+
 lazy_static! {
     static ref INSTANCE: RwLock<Dispatch> = RwLock::new(Dispatch::new());
 }
 pub struct Dispatch {
-    trigger_callbacks: HashMap<u32, Box<Fn(&mut Trigger) + 'static + Sync + Send>>,
+    trigger_callbacks: HashMap<u32, Callback>,
 }
 impl Dispatch {
     fn new() -> Dispatch {
@@ -77,12 +80,9 @@ impl Dispatch {
         }
     }
 
-    pub fn register_event<F: 'static + Sync + Send>(key: u32, callback: F)
-    where
-        F: Fn(&mut Trigger) -> (),
-    {
+    pub fn register_event(key: u32, callback: Callback) {
         let mut s = INSTANCE.write().unwrap();
-        s.trigger_callbacks.insert(key, Box::new(callback));
+        s.trigger_callbacks.insert(key, callback);
     }
 
     pub fn remove_event(key: u32) {

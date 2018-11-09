@@ -56,7 +56,7 @@ impl Player {
         let zone = self.zones.get_mut(ZoneName::Deck);
         for entry in deck.cards_for_zone(ZoneName::Deck) {
             for _ in 0..entry.count() {
-                zone.insert_at(Location::Default, CardPool::make_card(entry.card()));
+                //TODO zone.insert_at(Location::Default, CardPool::make_card(entry.card()));
             }
         }
         self.deck = Some(deck);
@@ -70,7 +70,7 @@ impl Player {
         for c in drawn_cards {
             match c {
                 Some(mut card) => {
-                    card.on_card_drawn(self);
+                    //TODO card.on_card_drawn(self);
                     self.zones.hand.insert_at(Location::Top, card);
                     //card_moved.after_card_drawn(self);
                 }

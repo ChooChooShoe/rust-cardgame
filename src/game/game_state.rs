@@ -1,7 +1,7 @@
 use crate::entity::cardpool::CardPool;
 use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
-use crate::game::{Action, ActionResult, Deck, Player, PlayerId, Zone, ZoneCollection};
+use crate::game::{Action, ActionResult, Deck, Player, PlayerId, Zone, ZoneCollection, ActiveCardPool};
 use crate::net::{Connection, NetResult, NetworkMode};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 pub struct Game {
     pub players: Vec<Player>,
     pub connections: Vec<Connection>,
-    pub battlefield: Vec<Card>,
+    pub cards: ActiveCardPool,
     pub effects: VecDeque<Effect>,
     pub action_queue: VecDeque<(PlayerId,Action)>,
     active_player_id: usize,
@@ -32,7 +32,7 @@ impl Game {
             players,
             connections,
             active_player_id: 0,
-            battlefield: Vec::new(),
+            cards: ActiveCardPool::new(),
             effects: VecDeque::new(),
             action_queue: VecDeque::new(),
             network_mode,
@@ -72,8 +72,8 @@ impl Game {
         &mut self.players[self.active_player_id]
     }
 
-    pub fn battlefield(&mut self) -> &mut [Card] {
-        &mut self.battlefield
+    pub fn active_card_pool(&mut self) -> &mut ActiveCardPool {
+        &mut self.cards
     }
 
     pub fn queue_action(&mut self, player_id: PlayerId, action: Action) {

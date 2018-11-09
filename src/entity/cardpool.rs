@@ -1,6 +1,6 @@
 use crate::entity::card::{Card, CardId};
-use crate::game::script::Script;
 use crate::entity::{TagKey, TagVal};
+use crate::game::script::Script;
 use serde_json;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -50,88 +50,34 @@ impl PooledCardData {
 }
 
 lazy_static! {
-    static ref INSTANCE: Mutex<CardPool> = Mutex::new(CardPool {
-        all_cards: HashMap::new(),
-        last_instance_id: 0,
-    });
+    static ref INSTANCE: CardPool = CardPool::from_disk().expect("Failed to load card pool.");
 }
 pub struct CardPool {
-    all_cards: HashMap<String, PooledCardData>,
-    last_instance_id: u64,
+    by_name: HashMap<String, PooledCardData>,
 }
 
 impl CardPool {
-    /// Makes a Card from the shared name or generates an 'Unknown Card' if name is not known.
-    /// The CardId is set not set by the pool.
-    pub fn make_card_with_id(id: CardId, name: &str) -> Card {
-        let pool = INSTANCE.lock().unwrap();
-        match pool.all_cards.get(name) {
-            Some(s) => Card::from_pool(id, s),
-            None => Card::new(
-                id,
-                "Unknown Card",
-                &format!("No card named '{}'", name),
-                Script::None,
-            ),
-        }
+    pub fn lookup_name(name: &str) -> Option<&PooledCardData> {
+        INSTANCE.by_name.get(name)
     }
-    /// Makes a Card from the shared name or generates an 'Unknown Card' if name is not known.
     pub fn make_card(name: &str) -> Card {
-        let mut pool = INSTANCE.lock().unwrap();
-        pool.last_instance_id += 1;
-        match pool.all_cards.get(name) {
-            Some(s) => Card::from_pool(pool.last_instance_id, s),
+        match CardPool::lookup_name(name) {
+            Some(data) => Card::from_pool(1, data),
             None => Card::new(
-                pool.last_instance_id,
+                0,
                 "Unknown Card",
-                &format!("No card named '{}'", name),
-                Script::None,
+                &format!("The card '{}' was not found.", name),
+                Box::new(()),
             ),
         }
-    }
-    // Makes a Card from the shared name only if the name is known.
-    pub fn try_make_card(name: &str) -> Option<Card> {
-        let mut pool = INSTANCE.lock().unwrap();
-        let res = match pool.all_cards.get(name) {
-            Some(s) => Some(Card::from_pool(pool.last_instance_id, s)),
-            None => None,
-        };
-        if res.is_some() {
-            pool.last_instance_id += 1;
-        }
-        res
     }
 
     pub fn from_disk() -> io::Result<CardPool> {
         let file = File::open("./output/cards_out.json")?;
-        let in_data: HashMap<String, PooledCardData> = serde_json::from_reader(file)?;
+        let by_name: HashMap<String, PooledCardData> = serde_json::from_reader(file)?;
         Ok(CardPool {
-            all_cards: in_data,
-            last_instance_id: 0,
+            by_name,
         })
-    }
-    fn new() -> CardPool {
-        let mut pool = CardPool {
-            all_cards: HashMap::with_capacity(20),
-            last_instance_id: 0,
-        };
-        for i in 0..20 {
-            let mut tags = HashMap::new();
-            tags.insert(TagKey::Health, TagVal::from(9 + i));
-            tags.insert(TagKey::Attack, TagVal::from(4 + i));
-            tags.insert(TagKey::Cost, TagVal::from(3.5 * (i as f32)));
-            tags.insert(TagKey::Damage, TagVal::None);
-            pool.all_cards.insert(
-                format!("GEN{:03}", 10000 + i),
-                PooledCardData {
-                    name: format!("Card #{:03}", i),
-                    text: format!("No Text"),
-                    script: String::from("none"),
-                    tags,
-                },
-            );
-        }
-        pool
     }
     pub fn write_to_disk(&self) -> io::Result<()> {
         match fs::create_dir("./output/") {
@@ -146,7 +92,7 @@ impl CardPool {
             }
         }
         let writer = File::create("./output/cards_out.json")?;
-        serde_json::to_writer_pretty(writer, &self.all_cards)?;
+        serde_json::to_writer_pretty(writer, &self.by_name)?;
         Ok(())
     }
 }

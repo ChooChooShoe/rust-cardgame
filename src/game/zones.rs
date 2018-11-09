@@ -1,4 +1,4 @@
-use crate::entity::Card;
+use crate::entity::CardKey;
 
 const DEF_BANISHED_SIZE: usize = 0;
 const DEF_BATTLEFIELD_SIZE: usize = 5;
@@ -51,17 +51,17 @@ pub enum Location {
 #[derive(Clone, Debug)]
 pub struct ZoneCollection {
     pub player: u64,
-    pub banished: Vec<Card>,
-    pub battlefield: Vec<Card>,
-    pub deck: Vec<Card>,
-    pub limbo: Vec<Card>,
-    pub graveyard: Vec<Card>,
-    pub hand: Vec<Card>,
+    pub banished: Vec<CardKey>,
+    pub battlefield: Vec<CardKey>,
+    pub deck: Vec<CardKey>,
+    pub limbo: Vec<CardKey>,
+    pub graveyard: Vec<CardKey>,
+    pub hand: Vec<CardKey>,
 }
 
-impl Zone<Card> for Vec<Card> {
+impl Zone<CardKey> for Vec<CardKey> {
     // Inserts value at this location
-    fn insert_at(&mut self, location: Location, element: Card) -> &mut Card {
+    fn insert_at(&mut self, location: Location, element: CardKey) -> &mut CardKey {
         match location {
             Location::Default => {
                 self.push(element);
@@ -91,7 +91,7 @@ impl Zone<Card> for Vec<Card> {
         }
     }
     // Removes value at this location and return it.
-    fn remove_at(&mut self, location: Location) -> Option<Card> {
+    fn remove_at(&mut self, location: Location) -> Option<CardKey> {
         match location {
             Location::Default => self.pop(),
             Location::Top => self.pop(),
@@ -114,13 +114,13 @@ impl Zone<Card> for Vec<Card> {
         }
     }
 
-    fn insert_all_at(&mut self, location: Location, cards: Vec<Card>) {
+    fn insert_all_at(&mut self, location: Location, cards: Vec<CardKey>) {
         for card in cards {
             self.insert_at(location, card);
         }
     }
 
-    fn remove_x_at(&mut self, count: usize, location: Location) -> Vec<Option<Card>> {
+    fn remove_x_at(&mut self, count: usize, location: Location) -> Vec<Option<CardKey>> {
         let mut vec = Vec::with_capacity(count);
         for _ in 0..count {
             vec.push(self.remove_at(location));
@@ -141,7 +141,7 @@ impl ZoneCollection {
             hand: Vec::with_capacity(DEF_HAND_SIZE),
         }
     }
-    pub fn get_mut(&mut self, zone: ZoneName) -> &mut Zone<Card> {
+    pub fn get_mut(&mut self, zone: ZoneName) -> &mut Zone<CardKey> {
         match zone {
             ZoneName::Banished => &mut self.banished,
             ZoneName::Battlefield => &mut self.battlefield,
@@ -151,7 +151,7 @@ impl ZoneCollection {
             ZoneName::Hand => &mut self.hand,
         }
     }
-    pub fn get(&self, zone: ZoneName) -> &Zone<Card> {
+    pub fn get(&self, zone: ZoneName) -> &Zone<CardKey> {
         match zone {
             ZoneName::Banished => &self.banished,
             ZoneName::Battlefield => &self.battlefield,

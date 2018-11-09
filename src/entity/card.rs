@@ -3,6 +3,7 @@ use crate::entity::{Dispatch, TagKey, TagVal, Trigger};
 use crate::game::player::Player;
 use crate::game::script::{Script, ScriptManager};
 use crate::game::GameScript;
+use crate::utils::vecmap::IndexKey;
 use std::borrow::Cow;
 use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::HashMap;
@@ -11,29 +12,20 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 pub type CardId = u64;
+pub type CardKey = IndexKey;
 
-#[derive(Clone)]
+//#[derive(Clone, Default, PartialEq)]
 pub struct Card {
-    inner: Rc<RefCell<CardData>>,
+    inner: CardData,
 }
+
+//#[derive(Clone, Default, PartialEq)]
 pub struct CardData {
     uid: CardId,
     name: String,
     text: String,
     tags: HashMap<TagKey, TagVal>,
     script: Script,
-}
-impl ToOwned for CardData {
-    type Owned = CardData;
-    fn to_owned(&self) -> CardData {
-        CardData {
-            uid: self.uid,
-            name: self.name.clone(),
-            text: self.text.clone(),
-            tags: self.tags.clone(),
-            script: self.script.clone(),
-        }
-    }
 }
 
 impl CardData {
@@ -85,51 +77,54 @@ impl fmt::Display for Card {
 impl Card {
     pub fn new(uid: CardId, name: &str, text: &str, script: Script) -> Card {
         Card {
-            inner: Rc::new(RefCell::new(CardData {
+            inner: CardData {
                 uid,
                 name: (String::from(name)),
                 text: (String::from(text)),
                 tags: (HashMap::new()),
                 script: script,
-            })),
+            },
         }
     }
     /// Creates a known card using data from the cardpool.
     pub fn from_pool(uid: CardId, data: &PooledCardData) -> Card {
         Card {
-            inner: Rc::new(RefCell::new(CardData {
+            inner: CardData {
                 uid,
                 name: (String::from(data.name())),
                 text: (String::from(data.text())),
                 tags: (data.clone_tags()),
                 script: ScriptManager::get(data.script()),
-            })),
+            },
         }
     }
 
     #[inline]
     pub fn uid(&self) -> u64 {
-        self.inner.borrow().uid
+        self.inner.uid
     }
     #[inline]
-    pub fn data(&self) -> Ref<CardData> {
-        self.inner.borrow()
+    pub fn data(&self) -> &CardData {
+        &self.inner
     }
     #[inline]
-    pub fn data_mut(&self) -> RefMut<CardData> {
-        self.inner.borrow_mut()
+    pub fn data_mut(&mut self) -> &mut CardData {
+        &mut self.inner
     }
 
     #[inline]
-    pub fn script(&self) -> Ref<CardData> {
-        self.inner.borrow()
+    pub fn script(&self) -> &CardData {
+        &self.inner
     }
 
     pub fn get_tag(&self, key: &TagKey) -> TagVal {
         *self.data().tags.get(key).unwrap_or(&TagVal::None)
     }
     pub fn set_tag(&mut self, key: TagKey, val: TagVal) -> TagVal {
-        self.data_mut().tags.insert(key,val).unwrap_or(TagVal::None)
+        self.data_mut()
+            .tags
+            .insert(key, val)
+            .unwrap_or(TagVal::None)
     }
 
     pub fn base_attack(&self) -> i32 {

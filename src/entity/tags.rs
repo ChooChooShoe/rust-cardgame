@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Eq, PartialEq, Debug, Hash, Deserialize, Serialize, Clone)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum TagKey {
     Cost,
     BaseCost,
@@ -13,7 +13,7 @@ pub enum TagKey {
     Damage,
 }
 
-#[derive(PartialEq, Debug, Deserialize, Serialize, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 /// Value that was set for a tag.
 /// One of i32, f32, or bool.
