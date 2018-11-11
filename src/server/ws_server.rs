@@ -9,15 +9,16 @@ use std::thread;
 use ws::Sender as WsSender;
 use ws::{Builder, Factory};
 
-pub fn listen<A: ToSocketAddrs>(ip: A) {
+pub fn listen<A: ToSocketAddrs>(ip: A, id: usize, max_players: usize) {
     let settings = ServerConfig::from_disk().into();
     let (send, recv) = channel();
-    let thread_handle = thread::spawn(move || core::run(recv, Game::new(2, NetworkMode::Server)));
+    let builder = thread::Builder::new().name(format!("server_{}", id));
+    let thread_handle = builder.spawn(move || core::run(recv, Game::new(max_players, NetworkMode::Server)));
 
     let factory = ServerFactory {
         sender: send,
         active_connections: 0,
-        max_players: 2,
+        max_players,
         next_player_id: 0,
     };
     let ws = Builder::new()
@@ -29,7 +30,7 @@ pub fn listen<A: ToSocketAddrs>(ip: A) {
         .expect("Couldn't listen or connection panic! for server.");
     
     info!("Waiting for server game thread to close.");
-    thread_handle.join().unwrap();
+    thread_handle.unwrap().join().unwrap();
     info!("Server Done!");
 }
 struct ServerFactory {

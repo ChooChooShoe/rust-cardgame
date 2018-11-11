@@ -14,15 +14,16 @@ use ws::{
     self, CloseCode, Error, ErrorKind, Handler, Handshake, Message, Request, Response, Result,
 };
 
-pub fn connect<U: Borrow<str>>(url: U) {
+pub fn connect<U: Borrow<str>>(url: U, id: usize, max_player: usize) {
     let (send, recv) = channel();
-    let thread_handle = thread::spawn(move || core::run(recv, Game::new(2, NetworkMode::Client)));
+    let builder = thread::Builder::new().name(format!("client_{}", id));
+    let thread_handle = builder.spawn(move || core::run(recv, Game::new(max_player, NetworkMode::Client)));
 
     ws::connect(url, |out: WsSender| Client::new(out, send.clone()))
         .expect("Couldn't begin connection to remote server and/or create a local client");
 
     info!("Waiting for client core to close.");
-    thread_handle.join().unwrap();
+    thread_handle.unwrap().join().unwrap();
     info!("Client Done!");
 }
 

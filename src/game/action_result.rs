@@ -22,6 +22,7 @@ pub enum OkCode {
     /// This action will trigger a change state for core.
     ChangeState,
 }
+
 /// The type of an error.
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub enum Error {

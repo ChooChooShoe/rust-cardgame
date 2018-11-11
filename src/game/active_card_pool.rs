@@ -1,4 +1,4 @@
-use crate::entity::{Card, CardPool, CardKey};
+use crate::entity::{Card, CardKey, CardPool};
 use crate::utils::vecmap::{IndexKey, IndexKeyAllocator, VecMap};
 
 //#[derive(Clone, Default)]
@@ -15,17 +15,22 @@ impl ActiveCardPool {
         }
     }
 
-    fn push_new(&mut self, card_name: &str) -> CardKey {
+    pub fn push_new(&mut self, card_name: &str) -> CardKey {
         let key = self.idxalloc.allocate();
         self.cards.insert(key, Card::new(key, card_name));
         key
     }
-    fn remove(&mut self, key: CardKey) -> bool {
+    pub fn remove(&mut self, key: CardKey) -> Option<Card> {
         if self.idxalloc.deallocate(key) {
-            self.cards.remove(key);
-            true
+            self.cards.remove(key)
         } else {
-            false
+            None
         }
+    }
+    pub fn get(&self, key: CardKey) -> Option<&Card> {
+        self.cards.get(key)
+    }
+    pub fn get_mut(&mut self, key: CardKey) -> Option<&mut Card> {
+        self.cards.get_mut(key)
     }
 }

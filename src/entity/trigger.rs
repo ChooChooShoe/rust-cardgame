@@ -1,3 +1,4 @@
+use crate::game::game_state::Game;
 use crate::entity::Card;
 use crate::game::Player;
 use std::collections::HashMap;
@@ -72,23 +73,31 @@ lazy_static! {
 }
 pub struct Dispatch {
     trigger_callbacks: HashMap<u32, Callback>,
+    game: Option<Game>
 }
 impl Dispatch {
     fn new() -> Dispatch {
         Dispatch {
             trigger_callbacks: HashMap::new(),
+            game: None,
         }
     }
-
-    pub fn register_event(key: u32, callback: Callback) {
+    pub fn set_game(game: Game) -> Option<Game> {
         let mut s = INSTANCE.write().unwrap();
-        s.trigger_callbacks.insert(key, callback);
+        let old = s.game.take();
+        s.game = Some(game);
+        old
     }
 
-    pub fn remove_event(key: u32) {
-        let mut s = INSTANCE.write().unwrap();
-        s.trigger_callbacks.remove(&key);
-    }
+    // pub fn register_event(key: u32, callback: Callback) {
+    //     let mut s = INSTANCE.write().unwrap();
+    //     s.trigger_callbacks.insert(key, callback);
+    // }
+
+    // pub fn remove_event(key: u32) {
+    //     let mut s = INSTANCE.write().unwrap();
+    //     s.trigger_callbacks.remove(&key);
+    // }
 
     pub fn broadcast(mut trigger: Trigger) {
         debug!("Broadcasting {:?}", trigger);

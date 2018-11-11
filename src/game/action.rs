@@ -1,6 +1,6 @@
 use bincode::{deserialize, serialize, ErrorKind};
 use crate::game::action_result::{Error, OkCode, Result};
-use crate::game::{Game, Deck, Phase, Turn, CardId, ClientId, PlayerId};
+use crate::game::{CardId, ClientId, Deck, Game, Phase, PlayerId, Turn};
 use crate::net::Connection;
 use std::convert::{From, Into};
 use std::error::Error as StdError;
@@ -20,12 +20,16 @@ pub enum Action {
     DrawCardKnown(usize, usize),
     DrawCardAnon(usize, usize),
 
+    /// Server responded with an Ok(OkCode)
+    OnResponceOk(OkCode),
+    /// Server responded with an Err(Error)
+    OnResponceErr(Error),
+
     // Player stated actions
     SelfEndTurn,
     PlayCard(u64),
     DirectAttack(u64, u64),
     DeclareAttack(u64, u64),
-
 
     // Sent from core
     GameStart(),
@@ -65,8 +69,15 @@ impl Action {
     }
 
     fn common_perform(self, game: &mut Game, sender: PlayerId) -> Result {
-        warn!("No implementation from {:?} w/ player #{}", self, sender);
-        Err(Error::NotSupported)
+        match self {
+            Action::OnResponceOk(OkCode::Done) => Ok(OkCode::Done),
+            Action::OnResponceOk(_ok_code) => Ok(OkCode::Done),
+            Action::OnResponceErr(_err) => Ok(OkCode::Done),
+            _ => {
+                warn!("No implementation from {:?} w/ player #{}", self, sender);
+                Err(Error::NotSupported)
+            }
+        }
     }
 
     fn server_perform(self, game: &mut Game, sender: PlayerId) -> Result {
@@ -96,7 +107,7 @@ impl Action {
             Action::GameStart() => Err(Error::NotSupported),
             Action::ReadyToPlay() => {
                 game.ready_players.insert(sender);
-                if game.ready_players.len() == game.players().len() {
+                if game.ready_players.len() == game.min_players() {
                     // Change state when all players are ready.
                     Ok(OkCode::ChangeState)
                 } else {
@@ -116,7 +127,6 @@ impl Action {
                 Ok(OkCode::Done)
             }
             Action::GameStart() => {
-                game.server().send(&Action::DrawCardAnon(0, 3)).unwrap();
                 Ok(OkCode::Done)
             }
             Action::BeginGameSetup() => {
@@ -126,7 +136,7 @@ impl Action {
             }
             Action::SwitchTurn(turn) => {
                 // if this is our turn.
-                if turn.player() == game.local_player && turn.phase() == Phase::Play{
+                if turn.player() == game.local_player && turn.phase() == Phase::Play {
                     Connection::do_turn(game, turn);
                 }
                 Ok(OkCode::Done)

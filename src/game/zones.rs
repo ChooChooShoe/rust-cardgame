@@ -1,3 +1,4 @@
+use crate::game::PlayerId;
 use crate::entity::CardKey;
 
 const DEF_BANISHED_SIZE: usize = 0;
@@ -50,7 +51,7 @@ pub enum Location {
 
 #[derive(Clone, Debug)]
 pub struct ZoneCollection {
-    pub player: u64,
+    pub player: PlayerId,
     pub banished: Vec<CardKey>,
     pub battlefield: Vec<CardKey>,
     pub deck: Vec<CardKey>,
@@ -130,7 +131,7 @@ impl Zone<CardKey> for Vec<CardKey> {
 }
 
 impl ZoneCollection {
-    pub fn new(player: u64) -> ZoneCollection {
+    pub fn new(player: PlayerId) -> ZoneCollection {
         ZoneCollection {
             player,
             banished: Vec::with_capacity(DEF_BANISHED_SIZE),

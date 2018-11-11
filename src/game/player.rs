@@ -1,3 +1,5 @@
+use crate::game::PlayerId;
+use crate::game::Game;
 use crate::net;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -18,16 +20,16 @@ use crate::entity::Trigger;
 // Player owns the cards and the moves.
 #[derive(Clone)]
 pub struct Player {
-    pub pidx: usize,
+    pub player_id: PlayerId,
     pub name: String,
     pub deck: Option<Deck>,
     pub zones: ZoneCollection,
 }
 
 impl Player {
-    pub fn new(pidx: usize, name: String) -> Player {
+    pub fn new(player_id: PlayerId, name: String) -> Player {
         Player {
-            pidx,
+            player_id,
             name,
             deck: None,
             zones: ZoneCollection::new(42),

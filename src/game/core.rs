@@ -83,8 +83,14 @@ fn process_actions(game: &mut Game) -> bool {
     while let Some(action) = game.pop_action() {
         match action.1.perform(game, action.0) {
             Ok(OkCode::ChangeState) => return true,
-            Ok(_) => (),
-            Err(e) => info!("action err: {:?}", e),
+            Ok(OkCode::Done) => (),
+            Ok(code) => {
+                game.connection(action.0).send(&Action::OnResponceOk(code));
+            }
+            Err(e) => {
+                info!("action err: {:?}", e);
+                game.connection(action.0).send(&Action::OnResponceErr(e));
+            }
         }
     }
     false

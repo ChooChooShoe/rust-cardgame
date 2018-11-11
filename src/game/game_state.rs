@@ -1,7 +1,9 @@
 use crate::entity::cardpool::CardPool;
 use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
-use crate::game::{Action, ActionResult, Deck, Player, PlayerId, Zone, ZoneCollection, ActiveCardPool};
+use crate::game::{
+    Action, ActionResult, ActiveCardPool, Deck, Player, PlayerId, Zone, ZoneCollection,
+};
 use crate::net::{Connection, NetResult, NetworkMode};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
@@ -12,8 +14,8 @@ pub struct Game {
     pub players: Vec<Player>,
     pub connections: Vec<Connection>,
     pub cards: ActiveCardPool,
-    pub effects: VecDeque<Effect>,
-    pub action_queue: VecDeque<(PlayerId,Action)>,
+    // pub effects: VecDeque<Effect>,
+    pub action_queue: VecDeque<(PlayerId, Action)>,
     active_player_id: usize,
     network_mode: NetworkMode,
     pub ready_players: HashSet<PlayerId>,
@@ -33,7 +35,7 @@ impl Game {
             connections,
             active_player_id: 0,
             cards: ActiveCardPool::new(),
-            effects: VecDeque::new(),
+            // effects: VecDeque::new(),
             action_queue: VecDeque::new(),
             network_mode,
             ready_players: HashSet::new(),
@@ -84,6 +86,13 @@ impl Game {
     }
     pub fn is_action_queue_empty(&self) -> bool {
         self.action_queue.is_empty()
+    }
+
+    pub fn min_players(&self) -> usize {
+        2
+    }
+    pub fn max_players(&self) -> usize {
+        255
     }
 
     pub fn shuffle_decks(&mut self) {
