@@ -60,18 +60,6 @@ impl CardPool {
     pub fn lookup_name(name: &str) -> Option<&PooledCardData> {
         INSTANCE.by_name.get(name)
     }
-    pub fn make_card(name: &str) -> Card {
-        match CardPool::lookup_name(name) {
-            Some(data) => Card::from_pool(1, data),
-            None => Card::new(
-                0,
-                "Unknown Card",
-                &format!("The card '{}' was not found.", name),
-                Box::new(()),
-            ),
-        }
-    }
-
     pub fn from_disk() -> io::Result<CardPool> {
         let file = File::open("./output/cards_out.json")?;
         let by_name: HashMap<String, PooledCardData> = serde_json::from_reader(file)?;

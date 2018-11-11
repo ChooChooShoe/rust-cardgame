@@ -15,9 +15,9 @@ impl ActiveCardPool {
         }
     }
 
-    fn push_new(&mut self, card: Card) -> CardKey {
+    fn push_new(&mut self, card_name: &str) -> CardKey {
         let key = self.idxalloc.allocate();
-        self.cards.insert(key, card);
+        self.cards.insert(key, Card::new(key, card_name));
         key
     }
     fn remove(&mut self, key: CardKey) -> bool {

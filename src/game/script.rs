@@ -14,6 +14,12 @@ lazy_static! {
 pub struct ScriptManager;
 
 impl ScriptManager {
+    /// Test to see if there is a script with given script_id.
+    pub fn is_valid(script_id: &str) -> bool {
+        INSTANCE.contains_key(script_id)
+    }
+    /// Gets a Boxed GameScript for the given script_id.
+    /// If it's an ivalid id, a default script is returned.
     pub fn get(script_id: &str) -> Box<dyn GameScript> {
         match INSTANCE.get(script_id) {
             Some(s) => s.box_clone(),
@@ -24,9 +30,9 @@ impl ScriptManager {
 pub type Script = Box<dyn GameScript>;
 
 pub trait GameScript: Send + Sync {
-    // any event has happened.
+    /// Any event has happened. WIP
     fn on_event(&self);
-    // Create a new version of the script and return it in a box.
+    /// Create a new version of the script and return it in a box.
     fn box_clone(&self) -> Box<GameScript>;
 }
 

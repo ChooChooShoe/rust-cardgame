@@ -1,4 +1,4 @@
-use crate::entity::cardpool::PooledCardData;
+use crate::entity::cardpool::{CardPool,PooledCardData};
 use crate::entity::{Dispatch, TagKey, TagVal, Trigger};
 use crate::game::player::Player;
 use crate::game::script::{Script, ScriptManager};
@@ -16,19 +16,59 @@ pub type CardKey = IndexKey;
 
 //#[derive(Clone, Default, PartialEq)]
 pub struct Card {
-    inner: CardData,
-}
-
-//#[derive(Clone, Default, PartialEq)]
-pub struct CardData {
-    uid: CardId,
+    //key: CardKey,
     name: String,
     text: String,
     tags: HashMap<TagKey, TagVal>,
     script: Script,
 }
 
-impl CardData {
+
+impl fmt::Debug for Card {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Card {{name: {}, tags.len(): {}}}",
+            self.name,
+            self.tags.len(),
+        )
+    }
+}
+impl fmt::Display for Card {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}#{:04} ({} tags)",
+            self.name(),
+            0,//self.key(),
+            self.tags_len()
+        )
+    }
+}
+
+impl Card {
+    /// Creates a known card using data from the cardpool.
+    pub fn from_pool(key: CardKey, data: &PooledCardData) -> Card {
+        Card {
+            name: (String::from(data.name())),
+            text: (String::from(data.text())),
+            tags: (data.clone_tags()),
+            script: ScriptManager::get(data.script()),
+        }
+    }
+    pub fn new(key: CardKey, name: &str) -> Card {
+        if let Some(data) = CardPool::lookup_name(name) {
+            Card::from_pool(key, data)
+        } else {
+            Card {
+                name: (String::from("Unknown Card")),
+                text: (String::from("")),
+                tags: HashMap::new(),
+                script: ScriptManager::get("none"),
+            }
+        }
+    }
+
     #[inline]
     pub fn name(&self) -> &str {
         &self.name
@@ -41,88 +81,12 @@ impl CardData {
     pub fn tags_len(&self) -> usize {
         self.tags.len()
     }
-    #[inline]
-    pub fn get_tag(&self, key: &TagKey) -> Option<&TagVal> {
-        self.tags.get(key)
-    }
-    #[inline]
-    pub fn set_tag(&mut self, key: TagKey, val: TagVal) -> Option<TagVal> {
-        self.tags.insert(key, val)
-    }
-}
-
-impl fmt::Debug for Card {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Card {{ uid: {}, name: {}, tags.len(): {}}}",
-            self.uid(),
-            self.data().name(),
-            self.data().tags_len(),
-        )
-    }
-}
-impl fmt::Display for Card {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}#{:04} ({} tags)",
-            self.data().name(),
-            self.uid(),
-            self.data().tags_len()
-        )
-    }
-}
-
-impl Card {
-    pub fn new(uid: CardId, name: &str, text: &str, script: Script) -> Card {
-        Card {
-            inner: CardData {
-                uid,
-                name: (String::from(name)),
-                text: (String::from(text)),
-                tags: (HashMap::new()),
-                script: script,
-            },
-        }
-    }
-    /// Creates a known card using data from the cardpool.
-    pub fn from_pool(uid: CardId, data: &PooledCardData) -> Card {
-        Card {
-            inner: CardData {
-                uid,
-                name: (String::from(data.name())),
-                text: (String::from(data.text())),
-                tags: (data.clone_tags()),
-                script: ScriptManager::get(data.script()),
-            },
-        }
-    }
-
-    #[inline]
-    pub fn uid(&self) -> u64 {
-        self.inner.uid
-    }
-    #[inline]
-    pub fn data(&self) -> &CardData {
-        &self.inner
-    }
-    #[inline]
-    pub fn data_mut(&mut self) -> &mut CardData {
-        &mut self.inner
-    }
-
-    #[inline]
-    pub fn script(&self) -> &CardData {
-        &self.inner
-    }
 
     pub fn get_tag(&self, key: &TagKey) -> TagVal {
-        *self.data().tags.get(key).unwrap_or(&TagVal::None)
+        *self.tags.get(key).unwrap_or(&TagVal::None)
     }
     pub fn set_tag(&mut self, key: TagKey, val: TagVal) -> TagVal {
-        self.data_mut()
-            .tags
+        self.tags
             .insert(key, val)
             .unwrap_or(TagVal::None)
     }
