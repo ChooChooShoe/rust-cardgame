@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use crate::game::action::Action;
 use crate::game::{ActionError, Game, OkCode, Phase, Turn};
-use crate::net::NetworkMode;
+use crate::net::{NetworkMode,NetError};
 
 // Message from clients to game loop.
 pub enum Event {
@@ -25,49 +25,14 @@ pub fn run(recv: Receiver<Event>, mut game: Game) {
     // last_player_id is set when an Event::OnPlayerAction causes a break.
     // loop until curent state is State::Done.
     while !state.is_done() {
-        let state_start = Instant::now();
-        let deadline = state_start + state.get_duration();
         // Notify current state before loop.
         state.enter(&mut game);
 
         // Loops until the current state gets an event that will change state.
         // OR until the current states times out and next_on_timeout is used.
-        let next_state = loop {
-            // process before we wait to recive. Can break again before we recv anything.
-            if process_actions(&mut game) {
-                break state.next_on_request(&mut game);
-            }
-            match recv.recv_deadline(deadline) {
-                Ok(Event::OpenConnection(id, connection)) => {
-                    info!("Core got connection #{}", id);
-                    *game.connection(id) = connection;
-                }
-                Ok(Event::CloseConnection(id)) => {
-                    game.connection(id).on_close_connection();
-                }
-                Ok(Event::AllPlayersConnected()) => {
-                    assert!(game.network_mode().is_server());
-                    if state == State::Waiting {
-                        // game.send_all_action(&Action::GameStart());
-                        break State::GameSetup;
-                    }
-                }
-                Ok(Event::StopAndExit()) => break State::Done(GameResults::StopAndExit),
-                Ok(Event::OnPlayerAction(player_id, action)) => {
-                    game.queue_action(player_id, action);
-                    //TODO all actions in queue are performed with this connection
-                    //TODO watch for infinit loops.
-                    if process_actions(&mut game) {
-                        break state.next_on_request(&mut game);
-                    }
-                }
-                Err(RecvTimeoutError::Disconnected) => break State::Done(GameResults::StopAndExit),
-                Err(RecvTimeoutError::Timeout) => {
-                    info!("State {:?} timeout!", state);
-                    break state.next_on_timeout(&mut game);
-                }
-            }
-        };
+        // TODO not unwrap the NetError.
+        let next_state = get_next_state(&recv, &mut state, &mut game).unwrap();
+
         // Recv loop ended. Notify current state. Then switch states.
         state.exit(&mut game);
         state = state.transition(&mut game, next_state);
@@ -79,22 +44,47 @@ pub fn run(recv: Receiver<Event>, mut game: Game) {
         conn.close();
     }
 }
-fn process_actions(game: &mut Game) -> bool {
-    while let Some(action) = game.pop_action() {
-        match action.1.perform(game, action.0) {
-            Ok(OkCode::ChangeState) => return true,
-            Ok(OkCode::Done) => (),
-            Ok(code) => {
-                game.connection(action.0).send(&Action::OnResponceOk(code));
+
+fn get_next_state(recv: &Receiver<Event>, state:  &mut State, game: &mut Game) -> Result<State,NetError> {
+    let state_start = Instant::now();
+    let deadline = state_start + state.get_duration();
+    Ok(loop {
+        // process before we wait to recive. Can break again before we recv anything.
+        if game.process_actions()? {
+            break state.next_on_request(game);
+        }
+        match recv.recv_deadline(deadline) {
+            Ok(Event::OpenConnection(id, connection)) => {
+                info!("Core got connection #{}", id);
+                *game.connection(id) = connection;
             }
-            Err(e) => {
-                info!("action err: {:?}", e);
-                game.connection(action.0).send(&Action::OnResponceErr(e));
+            Ok(Event::CloseConnection(id)) => {
+                game.connection(id).on_close_connection();
+            }
+            Ok(Event::AllPlayersConnected()) => {
+                assert!(game.network_mode().is_server());
+                if *state == State::Waiting {
+                    // game.send_all_action(&Action::GameStart());
+                    break State::GameSetup;
+                }
+            }
+            Ok(Event::StopAndExit()) => break State::Done(GameResults::StopAndExit),
+            Ok(Event::OnPlayerAction(player_id, action)) => {
+                game.queue_action(player_id, action);
+                if game.process_actions()? {
+                    break state.next_on_request(game);
+                }
+            }
+            Err(RecvTimeoutError::Disconnected) => break State::Done(GameResults::StopAndExit),
+            Err(RecvTimeoutError::Timeout) => {
+                info!("State {:?} timeout!", state);
+                break state.next_on_timeout(game);
             }
         }
-    }
-    false
+    })
 }
+
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Waiting,

@@ -2,9 +2,9 @@ use crate::entity::cardpool::CardPool;
 use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
 use crate::game::{
-    Action, ActionResult, ActiveCardPool, Deck, Player, PlayerId, Zone, ZoneCollection,
+    Action, ActionResult, ActiveCardPool, Deck, Player, PlayerId, Zone, ZoneCollection,OkCode
 };
-use crate::net::{Connection, NetResult, NetworkMode};
+use crate::net::{Connection, NetResult, NetworkMode,NetError};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -15,7 +15,8 @@ pub struct Game {
     pub connections: Vec<Connection>,
     pub cards: ActiveCardPool,
     // pub effects: VecDeque<Effect>,
-    pub action_queue: VecDeque<(PlayerId, Action)>,
+    action_queue: VecDeque<(PlayerId, Action)>,
+    //trigger_queue: VecDeque<Trigger>,
     active_player_id: usize,
     network_mode: NetworkMode,
     pub ready_players: HashSet<PlayerId>,
@@ -81,12 +82,12 @@ impl Game {
     pub fn queue_action(&mut self, player_id: PlayerId, action: Action) {
         self.action_queue.push_back((player_id, action))
     }
-    pub fn pop_action(&mut self) -> Option<(PlayerId, Action)> {
-        self.action_queue.pop_front()
-    }
-    pub fn is_action_queue_empty(&self) -> bool {
-        self.action_queue.is_empty()
-    }
+    // pub fn pop_action(&mut self) -> Option<(PlayerId, Action)> {
+    //     self.action_queue.pop_front()
+    // }
+    // pub fn is_action_queue_empty(&self) -> bool {
+    //     self.action_queue.is_empty()
+    // }
 
     pub fn min_players(&self) -> usize {
         2
@@ -121,5 +122,29 @@ impl Game {
     // Sends a game action to the player over their connection.
     pub fn send_action(&mut self, client_id: usize, action: &Action) -> NetResult {
         self.connection(client_id).send(action)
+    }
+
+    /// Returns true when a state changse is needed.
+    /// TODO all actions in queue are performed with this connection
+    /// TODO watch for infinit loops.
+    pub fn process_actions(&mut self) -> Result<bool,NetError> {
+        while let Some(action) = self.action_queue.pop_front() {
+            match action.1.perform(self, action.0) {
+                Ok(OkCode::ChangeState) => return Ok(true),
+                Ok(OkCode::Done) => (),
+                Ok(code) => {
+                    self.connection(action.0).send(&Action::OnResponceOk(code))?;
+                }
+                Err(e) => {
+                    info!("action err: {:?}", e);
+                    self.connection(action.0).send(&Action::OnResponceErr(e))?;
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    pub fn process_triggers(&mut self) {
+        
     }
 }
