@@ -67,6 +67,7 @@ fn main() {
         handels.2.join().unwrap();
     }
     info!("Program exit.");
+    utils::Input::flush();
 }
 
 fn mk_thread<F, T>(name: &str, f: F) -> thread::JoinHandle<T>

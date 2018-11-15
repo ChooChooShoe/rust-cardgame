@@ -1,4 +1,4 @@
-use crate::game::{Action, Player, Zone, Turn, Phase, Game};
+use crate::game::{Action, Game, Phase, Player, Turn, Zone};
 use crate::net::Codec;
 use std::error::Error as StdError;
 use std::fmt;
@@ -83,39 +83,6 @@ impl Connection {
     }
     pub fn on_close_connection(&mut self) {
         self.inner = Inner::EmptyPlayer();
-    }
-
-    pub fn do_turn(game: &mut Game, turn: Turn) -> Option<u64> {
-        info!("Player #{} turn {} start.", game.local_player, turn.turn_count());
-
-        let mut input = String::new();
-       loop{match io::stdin().read_line(&mut input) {
-            Ok(_num_bytes) => {
-                if Connection::handle_user_input(game, input.trim().split(" ").collect()) {
-                    return None
-                }
-            }
-            Err(error) => println!("Read input line error: {}", error);
-        }
-       }
-    }
-
-    pub fn handle_user_input(game: &mut Game, args: Vec<&str>) -> bool {
-        match args.len() {
-            0 => println!("No command entered"),
-            1 => match args[0] {
-                "draw" => {
-                    println!("drawing: {:?}", "card");
-                    game.send_action(0, &Action::DrawCardAnon(2,3));
-                }
-                "pass" => {
-                    return true;
-                }
-                _ => println!("Unknown command: {:?}", args),
-            },
-            _ => println!("Unknown command: {:?}", args),
-        }
-        false
     }
 }
 

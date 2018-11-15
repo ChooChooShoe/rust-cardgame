@@ -8,6 +8,7 @@ use std::fmt;
 use std::result::Result as StdResult;
 use std::time::Instant;
 use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
+use crate::utils::Input;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Action {
@@ -52,6 +53,8 @@ pub enum Action {
     // Player responses
     EndTurn(PlayerId),
 
+    HandleInput(),
+
     // Client sent requests.
     RequestStateChange,
 }
@@ -92,8 +95,9 @@ impl Action {
                 Ok(OkCode::ChangeState)
             }
             Action::DrawCardAnon(pid, amount) => {
-                game.players[pid].draw_x_cards(amount);
-                game.queue_action(sender, Action::EndTurn(sender));
+                warn!("no drawing...");
+                //game.players[pid].draw_x_cards(amount);
+                //game.queue_action(sender, Action::EndTurn(sender));
                 Ok(OkCode::Continue)
             }
             Action::SetDeck(deck) => {
@@ -136,9 +140,15 @@ impl Action {
             }
             Action::SwitchTurn(turn) => {
                 // if this is our turn.
-                if turn.player() == game.local_player && turn.phase() == Phase::Play {
-                    Connection::do_turn(game, turn);
+                if turn.player() == sender && turn.phase() == Phase::Play {
+                    info!("It's our turn!");
+                    game.queue_action(sender, Action::HandleInput())
                 }
+                Ok(OkCode::Done)
+            }
+            Action::HandleInput() => {
+                info!("handle input");
+                Input::handle_input(sender, game);
                 Ok(OkCode::Done)
             }
             _ => self.common_perform(game, sender),
