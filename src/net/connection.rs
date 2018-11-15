@@ -89,27 +89,33 @@ impl Connection {
         info!("Player #{} turn {} start.", game.local_player, turn.turn_count());
 
         let mut input = String::new();
-        match io::stdin().read_line(&mut input) {
+       loop{match io::stdin().read_line(&mut input) {
             Ok(_num_bytes) => {
-                Connection::handle_user_input(game, input.trim().split(" ").collect());
+                if Connection::handle_user_input(game, input.trim().split(" ").collect()) {
+                    return None
+                }
             }
-            Err(error) => println!("Read input line error: {}", error),
+            Err(error) => println!("Read input line error: {}", error);
         }
-
-        None
+       }
     }
 
-    pub fn handle_user_input(game: &mut Game, args: Vec<&str>) {
+    pub fn handle_user_input(game: &mut Game, args: Vec<&str>) -> bool {
         match args.len() {
             0 => println!("No command entered"),
             1 => match args[0] {
                 "draw" => {
-                    game.active_player().draw_x_cards(1);
+                    println!("drawing: {:?}", "card");
+                    game.send_action(0, &Action::DrawCardAnon(2,3));
+                }
+                "pass" => {
+                    return true;
                 }
                 _ => println!("Unknown command: {:?}", args),
             },
             _ => println!("Unknown command: {:?}", args),
         }
+        false
     }
 }
 

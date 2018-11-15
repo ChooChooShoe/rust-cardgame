@@ -49,7 +49,10 @@ impl Turn {
 
     /// The max amount of time allowed for this turn.
     pub fn get_duration(&self) -> Duration {
-        Duration::from_secs(30)
+        match self.phase {
+            Phase::Play => Duration::from_secs(30),
+            _ => Duration::from_millis(200),
+        }
     }
 
     /// Creates the next logical player turn or None if no next turn is possable.
