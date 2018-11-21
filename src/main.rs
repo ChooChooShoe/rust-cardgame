@@ -10,20 +10,26 @@ extern crate log;
 #[macro_use]
 extern crate lazy_static;
 
+mod client;
 mod config;
 mod entity;
 mod game;
 mod net;
-mod utils;
-mod client;
 mod server;
+mod utils;
 
 use crate::config::{Config, IoConfig};
 use log::{LevelFilter, Metadata, Record, SetLoggerError};
 use std::env;
 use std::io;
+use std::io::Write;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use std::error::Error;
+use std::fs::{self,File};
+use std::path::Path;
+use std::sync::Mutex;
 
 fn main() {
     logger_init(LevelFilter::Info).unwrap();
@@ -52,12 +58,14 @@ fn main() {
         client::connect("ws://127.0.0.1:3012", 0, max_players);
     } else {
         let handels = (
-            mk_thread("ws_server", move || server::listen("127.0.0.1:3012", 7, max_players)),
+            mk_thread("ws_server", move || {
+                server::listen("127.0.0.1:3012", 7, max_players)
+            }),
             mk_thread("ws_client_0", move || {
                 thread::sleep(Duration::from_millis(10));
                 client::connect("ws://127.0.0.1:3012", 0, max_players)
             }),
-             mk_thread("ws_client_1", move || {
+            mk_thread("ws_client_1", move || {
                 thread::sleep(Duration::from_millis(30));
                 client::connect("ws://127.0.0.1:3012", 1, max_players)
             }),
@@ -83,13 +91,29 @@ where
 struct SimpleLogger {
     level: LevelFilter,
     start: Instant,
+    log_file: Mutex<File>,
 }
 
 fn logger_init(level: LevelFilter) -> Result<(), SetLoggerError> {
+    let path = Path::new("logs/latest.log");
+    fs::create_dir_all("logs/").unwrap_or_else(|e| {
+        panic!("couldn't create log file path {} {:?}", path.display(), e.kind());
+    });
+
+    let file = match File::create(&path) {
+        Err(e) => panic!(
+            "couldn't create log file {}: {}",
+            path.display(),
+            e.description()
+        ),
+        Ok(file) => file,
+    };
+
     log::set_boxed_logger(Box::new(SimpleLogger {
         level,
         start: Instant::now(),
-    })).map(|()| log::set_max_level(level))
+        log_file: Mutex::new(file),
+    })).map(|()| log::set_max_level(LevelFilter::Trace))
 }
 impl log::Log for SimpleLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
@@ -97,31 +121,24 @@ impl log::Log for SimpleLogger {
     }
 
     fn log(&self, record: &Record) {
+        let t = Instant::now().duration_since(self.start);
+        let s = format!(
+            "{:03}.{:03} [{}] [{}] {}\n",
+            t.as_secs(),
+            t.subsec_millis(),
+            record.level().to_string(),
+            thread::current().name().unwrap_or("unnamed"),
+            record.args(),
+        );
         if self.enabled(record.metadata()) {
-            let t = Instant::now().duration_since(self.start);
-            //match (record.file(), record.line()) {
-            match (record.target(), record.line()) {
-                // //(Some(file), Some(line)) => println!(
-                // (target, Some(line)) => println!(
-                //     "{:03}.{:03} {}:{} [{}] {}",
-                //     t.as_secs(),
-                //     t.subsec_millis(),
-                //     target,
-                //     line,
-                //     record.level().to_string(),
-                //     record.args()
-                // ),
-                (_, _) => println!(
-                    "{:03}.{:03} [{}] [{}] {}",
-                    t.as_secs(),
-                    t.subsec_millis(),
-                    record.level().to_string(),
-                    thread::current().name().unwrap_or("unnamed"),
-                    record.args()
-                ),
-            }
+            print!("{}", s);
         }
+        let mut write_lock = self.log_file.lock().unwrap();
+        write_lock.write_all(&s.as_bytes()).unwrap();
     }
 
-    fn flush(&self) {}
+    fn flush(&self) {
+        let mut write_lock = self.log_file.lock().unwrap();
+        write_lock.flush().unwrap();
+    }
 }
