@@ -2,16 +2,10 @@ use crate::entity::cardpool::{CardPool,PooledCardData};
 use crate::entity::{Dispatch, TagKey, TagVal, Trigger};
 use crate::game::player::Player;
 use crate::game::script::{Script, ScriptManager};
-use crate::game::GameScript;
 use crate::utils::vecmap::IndexKey;
-use std::borrow::Cow;
-use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt;
-use std::rc::Rc;
-use std::sync::{Arc, RwLock};
 
-pub type CardId = u64;
 pub type CardKey = IndexKey;
 
 //#[derive(Clone, Default, PartialEq)]

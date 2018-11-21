@@ -1,11 +1,9 @@
 use crate::game::core::{self, Event};
-use crate::game::{Game,PlayerId,Action};
-use crate::net::{Codec, Connection, NetworkMode};
-use crate::net::{PID_HEADER, PROTOCOL, VERSION_HEADER};
+use crate::game::{Action, Game, PlayerId};
+use crate::net::{Codec, Connection, NetworkMode, PROTOCOL, VERSION_HEADER};
 use std::borrow::Borrow;
 use std::error::Error as StdError;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Sender as TSender;
+use std::sync::mpsc::{channel, Sender as TSender};
 use std::thread;
 use url;
 use ws::util::Token;
@@ -17,7 +15,8 @@ use ws::{
 pub fn connect<U: Borrow<str>>(url: U, id: usize, max_player: usize) {
     let (send, recv) = channel();
     let builder = thread::Builder::new().name(format!("client_{}", id));
-    let thread_handle = builder.spawn(move || core::run(recv, Game::new(max_player, NetworkMode::Client)));
+    let thread_handle =
+        builder.spawn(move || core::run(recv, Game::new(max_player, NetworkMode::Client)));
 
     ws::connect(url, |out: WsSender| Client::new(out, send.clone()))
         .expect("Couldn't begin connection to remote server and/or create a local client");
@@ -112,7 +111,7 @@ impl Handler for Client {
     #[inline]
     fn on_response(&mut self, _res: &Response) -> Result<()> {
         debug!("Client received response.");
-        Ok(()) 
+        Ok(())
         // res.header() is private? why?
         // let mut headers = res.headers().iter();
         // let search = headers.find(|&(ref key, _)| key.to_lowercase() == PID_HEADER);

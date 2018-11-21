@@ -1,14 +1,6 @@
-use crate::game::{Action, Game, Phase, Player, Turn, Zone};
-use crate::net::Codec;
-use std::error::Error as StdError;
-use std::fmt;
-use std::io;
-use std::result::Result as StdResult;
-use std::time::Instant;
-use ws::{CloseCode, Sender as WsSender};
-use std::{thread,time::Duration};
-
-use std::io::{BufRead, Read, Write};
+use crate::game::{Action, Game};
+use std::io::{self, BufRead, Write};
+use std::{thread, time::Duration};
 
 pub struct Input;
 

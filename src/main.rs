@@ -1,7 +1,7 @@
 #![feature(deadline_api)]
-// #![allow(dead_code)]
+#![allow(dead_code)]
 //#![allow(unused_variables)]
-// #![allow(unused_imports)]
+#![allow(unused_imports)]
 
 #[macro_use]
 extern crate serde_derive;
@@ -18,10 +18,8 @@ mod net;
 mod server;
 mod utils;
 
-use crate::config::{Config, IoConfig};
 use log::{LevelFilter, Metadata, Record, SetLoggerError};
 use std::env;
-use std::io;
 use std::io::Write;
 use std::thread;
 use std::time::{Duration, Instant};

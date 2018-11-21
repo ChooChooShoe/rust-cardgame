@@ -1,20 +1,7 @@
-use crate::game::PlayerId;
-use crate::game::Game;
-use crate::net;
-use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::io;
-
-use crate::entity::Card;
-use crate::entity::CardPool;
-use crate::game::Deck;
+use crate::entity::{Dispatch, Trigger};
+use crate::game::zones::{Location, Zone, ZoneName};
 use crate::game::ZoneCollection;
-use crate::game::zones::ZoneName;
-use crate::game::zones::{Location, Zone};
-use crate::game::{ActionError, ActionResult, OkCode};
-use crate::net::Connection;
-use crate::entity::Dispatch;
-use crate::entity::Trigger;
+use crate::game::{Deck, PlayerId};
 
 // This is the players reprsentation in the game.
 // Player owns the cards and the moves.
@@ -65,7 +52,9 @@ impl Player {
     }
 
     pub fn draw_x_cards(&mut self, x: usize) {
-        if x == 0 { return }
+        if x == 0 {
+            return;
+        }
 
         let drawn_cards = self.zones.deck.remove_x_at(x, Location::Top);
 

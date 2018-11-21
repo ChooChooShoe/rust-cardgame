@@ -1,13 +1,11 @@
-use crate::config;
 use crate::game::PlayerId;
-use crate::game::MAX_TURNS;
 use crate::net::Connection;
 use std::sync::mpsc::{Receiver, RecvError, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
 use crate::game::action::Action;
-use crate::game::{ActionError, Game, OkCode, Phase, Turn};
-use crate::net::{NetworkMode,NetError};
+use crate::game::{Game, Phase, Turn};
+use crate::net::NetError;
 
 // Message from clients to game loop.
 pub enum Event {

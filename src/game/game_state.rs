@@ -1,3 +1,4 @@
+use rand::{Rng,thread_rng};
 use crate::entity::{Card, Effect};
 use crate::game::{
     Action, ActionResult, ActiveCardPool, Deck, OkCode, Player, PlayerId, Zone, ZoneCollection,
