@@ -1,7 +1,5 @@
 use ws::Settings;
-use crate::io::{self,ErrorKind};
-use std::fs;
-use serde_json;
+use std::io::{self};
 use crate::config::{self,IoConfig};
 
 // Wrapper around ws::Settings to only let some be user defined.

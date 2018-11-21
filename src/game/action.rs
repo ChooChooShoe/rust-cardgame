@@ -1,14 +1,34 @@
-use bincode::{deserialize, serialize, ErrorKind};
+use crate::entity::card::CardKey;
 use crate::game::action_result::{Error, OkCode, Result};
-use crate::game::{CardId, ClientId, Deck, Game, Phase, PlayerId, Turn};
+use crate::game::{Deck, Game, Phase, PlayerId, Turn};
 use crate::net::Connection;
-use std::convert::{From, Into};
-use std::error::Error as StdError;
-use std::fmt;
-use std::result::Result as StdResult;
-use std::time::Instant;
-use ws::{Error as WsError, ErrorKind as WsErrorKind, Message};
 use crate::utils::Input;
+use std::fmt;
+
+#[derive(Debug)]
+pub enum Actor {
+    Authority(),
+    User(PlayerId),
+    Card(CardKey),
+}
+impl Actor {
+    pub fn id(&self) -> usize {
+        match self {
+            Actor::Authority() => 0,
+            Actor::User(id) => *id,
+            Actor::Card(id) => panic!(),
+        }
+    }
+}
+impl fmt::Display for Actor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Actor::Authority() => write!(f, "Authority"),
+            Actor::User(id) => write!(f, "User #{}", id),
+            Actor::Card(id) => write!(f, "Card at {:?}", id),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Action {
@@ -60,18 +80,18 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn perform(self, game: &mut Game, sender: PlayerId) -> Result {
+    pub fn perform(self, game: &mut Game, sender: Actor) -> Result {
         if game.network_mode().is_client() {
             self.client_perform(game, sender) // sender is *not* always 0
         } else {
             self.server_perform(game, sender)
         }
     }
-    pub fn undo(self, game: &mut Game, sender: PlayerId) -> Result {
+    pub fn undo(self, _game: &mut Game, _sender: Actor) -> Result {
         Err(Error::NotSupported)
     }
 
-    fn common_perform(self, game: &mut Game, sender: PlayerId) -> Result {
+    fn common_perform(self, game: &mut Game, sender: Actor) -> Result {
         match self {
             Action::OnResponceOk(OkCode::Done) => Ok(OkCode::Done),
             Action::OnResponceOk(_ok_code) => Ok(OkCode::Done),
@@ -83,11 +103,11 @@ impl Action {
         }
     }
 
-    fn server_perform(self, game: &mut Game, sender: PlayerId) -> Result {
+    fn server_perform(self, game: &mut Game, sender: Actor) -> Result {
         match self {
             Action::ChangePlayerId(_from, _to) => Err(Error::NotSupported),
             Action::EndTurn(p) => {
-                if sender != p {
+                if sender.id() != p {
                     warn!("Player ended the fro turn")
                 }
                 game.players[p].draw_x_cards(1);
@@ -102,7 +122,7 @@ impl Action {
             }
             Action::SetDeck(deck) => {
                 if deck.is_valid() {
-                    game.player(sender).set_deck(deck);
+                    game.player(sender.id()).set_deck(deck);
                     Ok(OkCode::Done)
                 } else {
                     Err(Error::InvalidParamaters)
@@ -110,7 +130,7 @@ impl Action {
             }
             Action::GameStart() => Err(Error::NotSupported),
             Action::ReadyToPlay() => {
-                game.ready_players.insert(sender);
+                game.ready_players.insert(sender.id());
                 if game.ready_players.len() == game.min_players() {
                     // Change state when all players are ready.
                     Ok(OkCode::ChangeState)
@@ -124,15 +144,13 @@ impl Action {
     fn server_undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
-    fn client_perform(self, game: &mut Game, sender: PlayerId) -> Result {
+    fn client_perform(self, game: &mut Game, sender: Actor) -> Result {
         match self {
             Action::ChangePlayerId(_from, to) => {
                 game.local_player = to;
                 Ok(OkCode::Done)
             }
-            Action::GameStart() => {
-                Ok(OkCode::Done)
-            }
+            Action::GameStart() => Ok(OkCode::Done),
             Action::BeginGameSetup() => {
                 game.server().send(&Action::SetDeck(Deck::new()))?;
                 game.server().send(&Action::ReadyToPlay())?;
@@ -140,15 +158,15 @@ impl Action {
             }
             Action::SwitchTurn(turn) => {
                 // if this is our turn.
-                if turn.player() == sender && turn.phase() == Phase::Play {
+                if turn.player() == sender.id() && turn.phase() == Phase::Play {
                     info!("It's our turn!");
-                    game.queue_action(sender, Action::HandleInput())
+                    game.queue_action(sender.id(), Action::HandleInput())
                 }
                 Ok(OkCode::Done)
             }
             Action::HandleInput() => {
                 info!("handle input");
-                Input::handle_input(sender, game);
+                Input::handle_input(sender.id(), game);
                 Ok(OkCode::Done)
             }
             _ => self.common_perform(game, sender),

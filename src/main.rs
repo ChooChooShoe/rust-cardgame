@@ -1,7 +1,7 @@
 #![feature(deadline_api)]
-#![allow(dead_code)]
+// #![allow(dead_code)]
 //#![allow(unused_variables)]
-#![allow(unused_imports)]
+// #![allow(unused_imports)]
 
 #[macro_use]
 extern crate serde_derive;

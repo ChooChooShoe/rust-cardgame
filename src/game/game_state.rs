@@ -1,11 +1,9 @@
-use crate::entity::cardpool::CardPool;
-use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
 use crate::game::{
     Action, ActionResult, ActiveCardPool, Deck, OkCode, Player, PlayerId, Zone, ZoneCollection,
 };
+use crate::game::action::Actor;
 use crate::net::{Connection, NetError, NetResult, NetworkMode};
-use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
@@ -137,7 +135,7 @@ impl Game {
     /// TODO watch for infinit loops.
     pub fn process_actions(&mut self) -> Result<bool, NetError> {
         while let Some(action) = self.action_queue.pop_front() {
-            match action.1.perform(self, action.0) {
+            match action.1.perform(self, Actor::User(action.0)) {
                 Ok(OkCode::ChangeState) => return Ok(true),
                 Ok(OkCode::Done) => (),
                 Ok(code) => {
