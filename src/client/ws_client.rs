@@ -52,7 +52,7 @@ fn thread_err<E: StdError>(e: E) -> Error {
 impl Handler for Client {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let action = Action::decode(&msg)?;
-        info!("Client #{} got {:?}", self.player_id, action);
+        debug!("Client #{} got {:?}", self.player_id, action);
 
         match action {
             Action::ChangePlayerId(_from, to) => {
@@ -110,34 +110,35 @@ impl Handler for Client {
         Response::from_request(req)
     }
     #[inline]
-    fn on_response(&mut self, res: &Response) -> Result<()> {
-        info!("Client received response.");
+    fn on_response(&mut self, _res: &Response) -> Result<()> {
+        debug!("Client received response.");
+        Ok(()) 
         // res.header() is private? why?
-        let mut headers = res.headers().iter();
-        let search = headers.find(|&(ref key, _)| key.to_lowercase() == PID_HEADER);
-        if let Some(header_entry) = search {
-            match String::from_utf8(header_entry.1.clone()) {
-                Ok(pid_string) => if let Ok(pid) = pid_string.parse::<usize>() {
-                    info!("Client is now player id {}.", pid);
-                    self.player_id = pid;
-                    Ok(())
-                } else {
-                    Err(Error::new(
-                        ErrorKind::Protocol,
-                        format!("Server gave us an invalid player id '{}'.", pid_string),
-                    ))
-                },
-                Err(x) => Err(Error::new(
-                    ErrorKind::Encoding(x.utf8_error()),
-                    "Server gave us an invalid UTF-8 string for player id.",
-                )),
-            }
-        } else {
-            Err(Error::new(
-                ErrorKind::Protocol,
-                "Server never gave us a player id.",
-            ))
-        }
+        // let mut headers = res.headers().iter();
+        // let search = headers.find(|&(ref key, _)| key.to_lowercase() == PID_HEADER);
+        // if let Some(header_entry) = search {
+        //     match String::from_utf8(header_entry.1.clone()) {
+        //         Ok(pid_string) => if let Ok(pid) = pid_string.parse::<usize>() {
+        //             info!("Client is now player id {}.", pid);
+        //             self.player_id = pid;
+        //             Ok(())
+        //         } else {
+        //             Err(Error::new(
+        //                 ErrorKind::Protocol,
+        //                 format!("Server gave us an invalid player id '{}'.", pid_string),
+        //             ))
+        //         },
+        //         Err(x) => Err(Error::new(
+        //             ErrorKind::Encoding(x.utf8_error()),
+        //             "Server gave us an invalid UTF-8 string for player id.",
+        //         )),
+        //     }
+        // } else {
+        //     Err(Error::new(
+        //         ErrorKind::Protocol,
+        //         "Server never gave us a player id.",
+        //     ))
+        // }
     }
     #[inline]
     fn build_request(&mut self, url: &url::Url) -> Result<Request> {

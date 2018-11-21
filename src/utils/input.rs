@@ -6,6 +6,7 @@ use std::io;
 use std::result::Result as StdResult;
 use std::time::Instant;
 use ws::{CloseCode, Sender as WsSender};
+use std::{thread,time::Duration};
 
 use std::io::{BufRead, Read, Write};
 
@@ -16,6 +17,7 @@ impl Input {
         io::stdout().flush().unwrap_or(());
     }
     pub fn handle_input(sender: usize, game: &mut Game) {
+        thread::sleep(Duration::from_millis(4));
         let stdin = io::stdin();
         let mut handle = stdin.lock();
         print!("> ");

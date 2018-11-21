@@ -2,9 +2,9 @@ use crate::entity::cardpool::CardPool;
 use crate::entity::trigger::{Dispatch, Trigger};
 use crate::entity::{Card, Effect};
 use crate::game::{
-    Action, ActionResult, ActiveCardPool, Deck, Player, PlayerId, Zone, ZoneCollection,OkCode
+    Action, ActionResult, ActiveCardPool, Deck, OkCode, Player, PlayerId, Zone, ZoneCollection,
 };
-use crate::net::{Connection, NetResult, NetworkMode,NetError};
+use crate::net::{Connection, NetError, NetResult, NetworkMode};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -26,10 +26,19 @@ impl Game {
     pub fn new(player_count: usize, network_mode: NetworkMode) -> Game {
         let mut players = Vec::with_capacity(player_count);
         let mut connections = Vec::with_capacity(player_count);
-        for x in 0..player_count {
-            players.push(Player::new(x, format!("Player #{}", x + 1)));
-            connections.push(Connection::from_empty(x));
+
+        if network_mode == NetworkMode::Client {
+            for x in 0..player_count {
+                players.push(Player::new(x, format!("Local Player #{}", x + 1)));
+            }
+            connections.push(Connection::from_name("Local Player"));
+        } else {
+            for x in 0..player_count {
+                players.push(Player::new(x, format!("Player #{}", x + 1)));
+                connections.push(Connection::from_empty(x));
+            }
         }
+
         Game {
             players,
             connections,
@@ -126,13 +135,14 @@ impl Game {
     /// Returns true when a state changse is needed.
     /// TODO all actions in queue are performed with this connection
     /// TODO watch for infinit loops.
-    pub fn process_actions(&mut self) -> Result<bool,NetError> {
+    pub fn process_actions(&mut self) -> Result<bool, NetError> {
         while let Some(action) = self.action_queue.pop_front() {
             match action.1.perform(self, action.0) {
                 Ok(OkCode::ChangeState) => return Ok(true),
                 Ok(OkCode::Done) => (),
                 Ok(code) => {
-                    self.connection(action.0).send(&Action::OnResponceOk(code))?;
+                    self.connection(action.0)
+                        .send(&Action::OnResponceOk(code))?;
                 }
                 Err(e) => {
                     info!("action err: {:?}", e);
@@ -143,7 +153,5 @@ impl Game {
         Ok(false)
     }
 
-    pub fn process_triggers(&mut self) {
-        
-    }
+    pub fn process_triggers(&mut self) {}
 }

@@ -76,6 +76,10 @@ impl Handler for ServerHandle {
                 }
                 // create a controller and send to thread.
                 let conn = Connection::from_network(self.player_id, self.ws.clone());
+
+                let a = Action::ChangePlayerId(0, self.player_id);
+                conn.send(&a).map_err(thread_err)?;
+
                 let event = Event::OpenConnection(self.player_id, conn);
                 self.core.send(event).map_err(thread_err)
             }
@@ -194,8 +198,8 @@ impl Handler for ServerHandle {
 
         if req.protocols()?.iter().any(|&s| s.contains(PROTOCOL)) {
             res.set_protocol(PROTOCOL);
-            res.headers_mut()
-                .push((PID_HEADER.into(), self.player_id.to_string().into_bytes()));
+            // res.headers_mut()
+            //     .push((PID_HEADER.into(), self.player_id.to_string().into_bytes()));
             res.headers_mut()
                 .push((VERSION_HEADER.into(), "0.0.1".into()));
             Ok(res)

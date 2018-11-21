@@ -131,7 +131,7 @@ impl State {
     }
 
     fn enter(&mut self, game: &mut Game) {
-        info!("Now entering state {:?}", self);
+        debug!("Now entering state {:?}", self);
         match self {
             State::GameStart => {
                 if game.network_mode().is_server() {

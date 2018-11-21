@@ -58,6 +58,13 @@ impl Connection {
             inner: Inner::EmptyPlayer(),
         }
     }
+    pub fn from_name(name: &str) -> Connection {
+        Connection {
+            player_id: 0,
+            inner: Inner::LocalPlayer(String::from(name)),
+        }
+    }
+
     pub fn player_id(&self) -> usize {
         self.player_id
     }
@@ -72,13 +79,13 @@ impl Connection {
     pub fn close(&self) {
         match &self.inner {
             Inner::WebSocetPlayer(ws) => ws.close(CloseCode::Normal).unwrap_or(()),
-            Inner::EmptyPlayer() => (),
+            _ => (),
         }
     }
     pub fn shutdown(&self) {
         match &self.inner {
             Inner::WebSocetPlayer(ws) => ws.shutdown().unwrap_or(()),
-            Inner::EmptyPlayer() => (),
+            _ => (),
         }
     }
     pub fn on_close_connection(&mut self) {
@@ -87,6 +94,7 @@ impl Connection {
 }
 
 enum Inner {
+    LocalPlayer(String),
     WebSocetPlayer(WsSender),
     EmptyPlayer(),
 }
@@ -99,8 +107,14 @@ impl Inner {
                 let message = action.encode().map_err(|e| Error::Encoding(0))?;
                 Ok(sender.send(message).map_err(|e| Error::Sending(1))?)
             }
-
-            Inner::EmptyPlayer() => Ok(()),
+            Inner::EmptyPlayer() =>  {
+                warn!("EmptyPlayer says: {:?}", action);
+                Ok(())
+            }
+            Inner::LocalPlayer(s) => {
+                warn!("Local Player '{}' says: {:?}", s, action);
+                Ok(())
+            }
         }
     }
 }
