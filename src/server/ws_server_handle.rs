@@ -92,9 +92,10 @@ impl Handler for ServerHandle {
             "Connection closing due to ({:?}) {} for player_id {}",
             code, reason, self.player_id
         );
-        let event = Event::CloseConnection(self.player_id as usize);
-        // Try to send and ignore any error.
-        self.core.send(event).unwrap_or(())
+        let event = Event::CloseConnection(self.player_id);
+        if self.core.send(event).is_err() {
+            warn!("Unable to communicate between threads on close")
+        }
     }
 
     /// Called on incoming messages.

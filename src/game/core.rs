@@ -9,8 +9,8 @@ use crate::net::NetError;
 
 // Message from clients to game loop.
 pub enum Event {
-    OpenConnection(PlayerId, Connection),
-    CloseConnection(PlayerId),
+    OpenConnection(usize, Connection),
+    CloseConnection(usize),
     AllPlayersConnected(),
     StopAndExit(),
     OnPlayerAction(PlayerId, Action),
@@ -39,7 +39,7 @@ pub fn run(recv: Receiver<Event>, mut game: Game) {
     // All connections are closed after the game.
     // When client only the connection to the server is closed.
     for conn in game.connections() {
-        conn.close();
+        conn.disconnect();
     }
 }
 
@@ -52,12 +52,14 @@ fn get_next_state(recv: &Receiver<Event>, state:  &mut State, game: &mut Game) -
             break state.next_on_request(game);
         }
         match recv.recv_deadline(deadline) {
-            Ok(Event::OpenConnection(id, connection)) => {
-                info!("Core got connection #{}", id);
-                *game.connection(id) = connection;
+            Ok(Event::OpenConnection(index, connection)) => {
+                info!("Core got connection #{}", index);
+                let conn = game.connection(index);
+                conn.destroy();
+                *conn = connection;
             }
-            Ok(Event::CloseConnection(id)) => {
-                game.connection(id).on_close_connection();
+            Ok(Event::CloseConnection(index)) => {
+                game.connection(index).destroy();
             }
             Ok(Event::AllPlayersConnected()) => {
                 assert!(game.network_mode().is_server());

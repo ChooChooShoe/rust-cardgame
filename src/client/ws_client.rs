@@ -28,15 +28,15 @@ pub fn connect<U: Borrow<str>>(url: U, id: usize, max_player: usize) {
 
 pub struct Client {
     ws_out: WsSender,
-    thread_out: TSender<Event>,
+    core: TSender<Event>,
     player_id: PlayerId,
 }
 
 impl Client {
-    fn new(out: WsSender, thread_out: TSender<Event>) -> Client {
+    fn new(out: WsSender, core: TSender<Event>) -> Client {
         Client {
             ws_out: out,
-            thread_out,
+            core,
             player_id: 0,
         }
     }
@@ -59,7 +59,7 @@ impl Handler for Client {
                 self.player_id = to;
                 // still passed to the core.
                 let ev = Event::OnPlayerAction(self.player_id, a);
-                self.thread_out.send(ev).map_err(thread_err)
+                self.core.send(ev).map_err(thread_err)
             }
             Action::Text(t) => {
                 info!("Received chat: {}", t);
@@ -68,7 +68,7 @@ impl Handler for Client {
             _ => {
                 // Any other action is sent to core thread.
                 let ev = Event::OnPlayerAction(self.player_id, action);
-                self.thread_out.send(ev).map_err(thread_err)
+                self.core.send(ev).map_err(thread_err)
             }
         }
     }
@@ -80,7 +80,7 @@ impl Handler for Client {
         let connection = Connection::from_network(self.player_id, self.ws_out.clone());
         let ev = Event::OpenConnection(0, connection);
 
-        self.thread_out.send(ev).map_err(thread_err)
+        self.core.send(ev).map_err(thread_err)
     }
 
     fn on_close(&mut self, code: CloseCode, reason: &str) {
@@ -88,7 +88,10 @@ impl Handler for Client {
             "Client #{} closing do to ({:?}) '{}'",
             self.player_id, code, reason
         );
-        if self.thread_out.send(Event::StopAndExit()).is_err() {
+        let event = Event::CloseConnection(0);
+        // Try to send and ignore any error.
+        self.core.send(event).unwrap_or(());
+        if self.core.send(Event::StopAndExit()).is_err() {
             warn!("Unable to communicate between threads on close")
         }
     }
@@ -98,7 +101,7 @@ impl Handler for Client {
             "Client #{} received WebSocket shutdown request.",
             self.player_id
         );
-        if self.thread_out.send(Event::StopAndExit()).is_err() {
+        if self.core.send(Event::StopAndExit()).is_err() {
             warn!("Unable to communicate between threads on shutdown")
         }
     }

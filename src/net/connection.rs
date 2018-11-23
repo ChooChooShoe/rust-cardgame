@@ -74,7 +74,7 @@ impl Connection {
         self.inner.send(action)
     }
 
-    pub fn close(&self) {
+    pub fn disconnect(&self) {
         match &self.inner {
             Inner::WebSocetPlayer(ws) => ws.close(CloseCode::Normal).unwrap_or(()),
             _ => (),
@@ -86,7 +86,7 @@ impl Connection {
             _ => (),
         }
     }
-    pub fn on_close_connection(&mut self) {
+    pub fn destroy(&mut self) {
         self.inner = Inner::EmptyPlayer();
     }
 }
