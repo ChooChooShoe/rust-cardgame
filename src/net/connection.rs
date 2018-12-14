@@ -2,7 +2,9 @@ use crate::game::Action;
 use crate::net::Codec;
 use std::error::Error as StdError;
 use std::fmt;
+use std::ops::Deref;
 use std::result::Result as StdResult;
+use std::sync::mpsc::Sender as TSender;
 use ws::{CloseCode, Sender as WsSender};
 
 pub type Result = StdResult<(), Error>;
@@ -10,6 +12,7 @@ pub type Result = StdResult<(), Error>;
 #[derive(Debug)]
 pub enum Error {
     Internal,
+    NoConnection,
     Encoding(usize),
     Sending(usize),
 }
@@ -30,6 +33,7 @@ impl StdError for Error {
             Error::Internal => "Internal Application Error",
             Error::Encoding(_) => "Encoding Error",
             Error::Sending(_) => "Sending Error",
+            Error::NoConnection => "No Connection",
         }
     }
     fn cause(&self) -> Option<&StdError> {
@@ -39,80 +43,66 @@ impl StdError for Error {
     }
 }
 
-pub struct Connection {
-    player_id: usize,
-    inner: Inner,
-}
-impl Connection {
-    pub fn from_network(player_id: usize, sender: WsSender) -> Connection {
-        Connection {
-            player_id,
-            inner: Inner::WebSocetPlayer(sender),
-        }
-    }
-    pub fn from_empty(player_id: usize) -> Connection {
-        Connection {
-            player_id,
-            inner: Inner::EmptyPlayer(),
-        }
-    }
-    pub fn from_name(name: &str) -> Connection {
-        Connection {
-            player_id: 0,
-            inner: Inner::LocalPlayer(String::from(name)),
-        }
-    }
-
-    pub fn player_id(&self) -> usize {
-        self.player_id
-    }
-    pub fn set_player_id(&mut self, player_id: usize) {
-        self.player_id = player_id
-    }
-
-    pub fn send(&self, action: &Action) -> Result {
-        self.inner.send(action)
-    }
-
-    pub fn disconnect(&self) {
-        match &self.inner {
-            Inner::WebSocetPlayer(ws) => ws.close(CloseCode::Normal).unwrap_or(()),
-            _ => (),
-        }
-    }
-    pub fn shutdown(&self) {
-        match &self.inner {
-            Inner::WebSocetPlayer(ws) => ws.shutdown().unwrap_or(()),
-            _ => (),
-        }
-    }
-    pub fn destroy(&mut self) {
-        self.inner = Inner::EmptyPlayer();
-    }
+pub struct BoxedConnection {
+    inner: Box<dyn Connection>,
 }
 
-enum Inner {
-    LocalPlayer(String),
-    WebSocetPlayer(WsSender),
-    EmptyPlayer(),
+impl Deref for BoxedConnection {
+    type Target = Box<dyn Connection>;
+
+    fn deref(&self) -> &Box<dyn Connection> {
+        &self.inner
+    }
+}
+impl BoxedConnection {
+    pub fn from_network(player_id: usize, sender: WsSender) -> BoxedConnection {
+        BoxedConnection {
+            inner: Box::new((player_id, sender)),
+        }
+    }
+    pub fn from_empty(player_id: usize) -> BoxedConnection {
+        BoxedConnection {
+            inner: Box::new(player_id),
+        }
+    }
+    pub fn from_name(name: &str) -> BoxedConnection {
+        BoxedConnection { inner: Box::new(0) }
+    }
+}
+pub trait Connection: Sync + Send {
+    /// Called to encode and send the action.
+    fn send(&self, action: &Action) -> Result;
+    /// Gets the player id that ownes this connection.
+    fn player_id(&self) -> usize;
+    /// Called to make a manual disconnect.
+    fn disconnect(&self) {}
+    /// Called when the server has requested shutdown.
+    fn shutdown(&self) {}
+    /// Called when this conntion is getting dropped.
+    /// or when closed from the other end.
+    fn destroy(&self) {}
 }
 
-impl Inner {
-    pub fn send(&self, action: &Action) -> Result {
-        // TODO errors are not boxed.
-        match self {
-            Inner::WebSocetPlayer(sender) => {
-                let message = action.encode().map_err(|e| Error::Encoding(0))?;
-                Ok(sender.send(message).map_err(|e| Error::Sending(1))?)
-            }
-            Inner::EmptyPlayer() =>  {
-                warn!("EmptyPlayer says: {:?}", action);
-                Ok(())
-            }
-            Inner::LocalPlayer(s) => {
-                warn!("Local Player '{}' says: {:?}", s, action);
-                Ok(())
-            }
-        }
+impl Connection for usize {
+    fn send(&self, action: &Action) -> Result {
+        Err(Error::NoConnection)
+    }
+    fn player_id(&self) -> usize {
+        *self
+    }
+}
+impl Connection for (usize, WsSender) {
+    fn send(&self, action: &Action) -> Result {
+        let message = action.encode().map_err(|e| Error::Encoding(0))?;
+        Ok(self.1.send(message).map_err(|e| Error::Sending(1))?)
+    }
+    fn player_id(&self) -> usize {
+        self.0
+    }
+    fn disconnect(&self) {
+        self.1.close(CloseCode::Normal).unwrap_or(())
+    }
+    fn shutdown(&self) {
+        self.1.shutdown().unwrap_or(())
     }
 }

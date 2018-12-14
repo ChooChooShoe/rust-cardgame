@@ -1,5 +1,5 @@
 pub mod connection;
-pub use self::connection::Connection;
+pub use self::connection::BoxedConnection as Connection;
 pub use self::connection::Result as NetResult;
 pub use self::connection::Error as NetError;
 pub use ws::{Error as WsError, ErrorKind as WsErrorKind, Message as WsMessage};
