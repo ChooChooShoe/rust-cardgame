@@ -1,18 +1,18 @@
 pub mod connection;
 pub use self::connection::Connection;
-pub use self::connection::Result as NetResult;
 pub use self::connection::Error as NetError;
+pub use self::connection::Result as NetResult;
 pub use ws::{Error as WsError, ErrorKind as WsErrorKind, Message as WsMessage};
 
 use bincode::{deserialize, serialize, ErrorKind as BincodeError};
 use crate::game::action::Action;
+use crate::game::PlayerId;
 use std::convert::From;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NetworkMode {
     Client,
     Server,
-    Both,
 }
 
 pub const PROTOCOL: &str = "player.rust-cardgame";
@@ -22,15 +22,11 @@ pub const PID_HEADER: &str = "rust-cardgame-playerid";
 impl NetworkMode {
     #[inline]
     pub fn is_client(&self) -> bool {
-        self != &NetworkMode::Server
+        &NetworkMode::Client == self
     }
     #[inline]
     pub fn is_server(&self) -> bool {
-        self != &NetworkMode::Client
-    }
-    #[inline]
-    pub fn is_both(&self) -> bool {
-        self == &NetworkMode::Both
+        &NetworkMode::Server == self
     }
 }
 pub trait Codec: Sized {

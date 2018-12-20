@@ -147,7 +147,7 @@ impl Action {
     fn client_perform(self, game: &mut Game, sender: Actor) -> Result {
         match self {
             Action::ChangePlayerId(_from, to) => {
-                game.local_player = to;
+                game.local_player_id = to;
                 Ok(OkCode::Done)
             }
             Action::GameStart() => Ok(OkCode::Done),

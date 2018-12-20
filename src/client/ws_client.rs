@@ -16,7 +16,7 @@ pub fn connect<U: Borrow<str>>(url: U, id: usize, max_player: usize) {
     let (send, recv) = channel();
     let builder = thread::Builder::new().name(format!("client_{}", id));
     let thread_handle =
-        builder.spawn(move || core::run(recv, Game::new(max_player, NetworkMode::Client)));
+        builder.spawn(move || core::run(recv, Game::new(id, max_player, NetworkMode::Client)));
 
     ws::connect(url, |out: WsSender| Client::new(out, send.clone()))
         .expect("Couldn't begin connection to remote server and/or create a local client");

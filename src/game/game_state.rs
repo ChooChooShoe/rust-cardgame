@@ -1,10 +1,10 @@
-use rand::{Rng,thread_rng};
 use crate::entity::{Card, Effect};
+use crate::game::action::Actor;
 use crate::game::{
     Action, ActionResult, ActiveCardPool, Deck, OkCode, Player, PlayerId, Zone, ZoneCollection,
 };
-use crate::game::action::Actor;
 use crate::net::{Connection, NetError, NetResult, NetworkMode};
+use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
@@ -12,29 +12,37 @@ use std::collections::{HashMap, HashSet};
 pub struct Game {
     pub players: Vec<Player>,
     pub connections: Vec<Connection>,
+    active_player_id: PlayerId,
+    pub local_player_id: usize,
     pub cards: ActiveCardPool,
     action_queue: VecDeque<(PlayerId, Action)>,
     pub stack: VecDeque<Effect>,
-    active_player_id: usize,
     network_mode: NetworkMode,
     pub ready_players: HashSet<PlayerId>,
-    pub local_player: PlayerId,
 }
 
 impl Game {
-    pub fn new(player_count: usize, network_mode: NetworkMode) -> Game {
+    pub fn new(id: usize, player_count: usize, network_mode: NetworkMode) -> Game {
         let mut players = Vec::with_capacity(player_count);
-        let mut connections = Vec::with_capacity(player_count);
+        let mut connections;
 
-        if network_mode == NetworkMode::Client {
-            for x in 0..player_count {
-                players.push(Player::new(x, format!("Local Player #{}", x + 1)));
+        match network_mode {
+            NetworkMode::Client => {
+                for x in 0..player_count {
+                    if id == x {
+                        players.push(Player::new(x, format!("Local Player #{}", x + 1)));
+                    } else {
+                        players.push(Player::new(x, format!("Remote Player #{}", x + 1)));
+                    }
+                }
+                connections = vec![Connection::from_empty(0)];
             }
-            connections.push(Connection::from_empty(0));
-        } else {
-            for x in 0..player_count {
-                players.push(Player::new(x, format!("Player #{}", x + 1)));
-                connections.push(Connection::from_empty(x));
+            NetworkMode::Server => {
+                connections = Vec::with_capacity(player_count);
+                for x in 0..player_count {
+                    players.push(Player::new(x, format!("Player #{}", x + 1)));
+                    connections.push(Connection::from_empty(x));
+                }
             }
         }
 
@@ -42,12 +50,12 @@ impl Game {
             players,
             connections,
             active_player_id: 0,
+            local_player_id: id,
             cards: ActiveCardPool::new(),
             stack: VecDeque::new(),
             action_queue: VecDeque::new(),
             network_mode,
             ready_players: HashSet::new(),
-            local_player: 0,
         }
     }
     /// Gets which of Server, Client, or Both that this game is running as.
@@ -118,7 +126,7 @@ impl Game {
         }
     }
 
-    pub fn send_all_action(&mut self, action: &Action) -> NetResult<()>  {
+    pub fn send_all_action(&mut self, action: &Action) -> NetResult<()> {
         for conn in self.connections() {
             match conn.send(action) {
                 Ok(_) => (),

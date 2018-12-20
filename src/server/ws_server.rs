@@ -13,7 +13,7 @@ pub fn listen<A: ToSocketAddrs>(ip: A, id: usize, max_players: usize) {
     let settings = ServerConfig::from_disk().into();
     let (send, recv) = channel();
     let builder = thread::Builder::new().name(format!("server_{}", id));
-    let thread_handle = builder.spawn(move || core::run(recv, Game::new(max_players, NetworkMode::Server)));
+    let thread_handle = builder.spawn(move || core::run(recv, Game::new(id, max_players, NetworkMode::Server)));
 
     let factory = ServerFactory {
         sender: send,
