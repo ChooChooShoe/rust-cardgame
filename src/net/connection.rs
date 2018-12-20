@@ -1,20 +1,19 @@
-use crate::game::Action;
+use bincode::{serialize, ErrorKind};
+use crate::game::{Action, PlayerId};
 use crate::net::Codec;
 use std::error::Error as StdError;
 use std::fmt;
-use std::ops::Deref;
 use std::result::Result as StdResult;
 use std::sync::mpsc::Sender as TSender;
-use ws::{CloseCode, Sender as WsSender};
+use ws::{CloseCode, Message, Sender as WsSender, Error as WsError};
 
-pub type Result = StdResult<(), Error>;
+pub type Result<T> = StdResult<T, Error>;
 /// A simple wrapped network error
 #[derive(Debug)]
 pub enum Error {
-    Internal,
     NoConnection,
-    Encoding(usize),
-    Sending(usize),
+    Encoding(ErrorKind),
+    Sending(WsError),
 }
 
 impl fmt::Display for Error {
@@ -30,7 +29,6 @@ impl fmt::Display for Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match self {
-            Error::Internal => "Internal Application Error",
             Error::Encoding(_) => "Encoding Error",
             Error::Sending(_) => "Sending Error",
             Error::NoConnection => "No Connection",
@@ -38,71 +36,69 @@ impl StdError for Error {
     }
     fn cause(&self) -> Option<&StdError> {
         match self {
-            _ => None,
+            Error::Encoding(e) => Some(e),
+            Error::Sending(e) => Some(e),
+            Error::NoConnection => None,
         }
     }
 }
 
-pub struct BoxedConnection {
-    inner: Box<dyn Connection>,
+fn encode_action(action: &Action) -> Result<Message> {
+    match action {
+        Action::Text(t) => Ok(Message::Text(t.to_string())),
+        _ => {
+            let data = serialize(action).map_err(|e| Error::Encoding(*e))?;
+            Ok(Message::Binary(data))
+        },
+    }
 }
 
-impl Deref for BoxedConnection {
-    type Target = Box<dyn Connection>;
+pub enum Connection {
+    WsPlayer(PlayerId, WsSender),
+    Other(PlayerId),
+}
+impl Connection {
+    pub fn from_network(player_id: PlayerId, sender: WsSender) -> Connection {
+        Connection::WsPlayer(player_id, sender)
+    }
+    pub fn from_empty(player_id: PlayerId) -> Connection {
+        Connection::Other(player_id)
+    }
 
-    fn deref(&self) -> &Box<dyn Connection> {
-        &self.inner
-    }
-}
-impl BoxedConnection {
-    pub fn from_network(player_id: usize, sender: WsSender) -> BoxedConnection {
-        BoxedConnection {
-            inner: Box::new((player_id, sender)),
-        }
-    }
-    pub fn from_empty(player_id: usize) -> BoxedConnection {
-        BoxedConnection {
-            inner: Box::new(player_id),
-        }
-    }
-    pub fn from_name(name: &str) -> BoxedConnection {
-        BoxedConnection { inner: Box::new(0) }
-    }
-}
-pub trait Connection: Sync + Send {
     /// Called to encode and send the action.
-    fn send(&self, action: &Action) -> Result;
+    pub fn send(&self, action: &Action) -> Result<()> {
+        match self {
+            Connection::WsPlayer(_, ws) => {
+                let message = encode_action(action)?;
+                Ok(ws.send(message).map_err(|e| Error::Sending(e))?)
+            }
+            Connection::Other(_) => Err(Error::NoConnection),
+        }
+    }
     /// Gets the player id that ownes this connection.
-    fn player_id(&self) -> usize;
+    pub fn player_id(&self) -> PlayerId {
+        match self {
+            Connection::WsPlayer(player_id, _) => *player_id,
+            Connection::Other(player_id) => *player_id,
+        }
+    }
     /// Called to make a manual disconnect.
-    fn disconnect(&self) {}
+    pub fn disconnect(&self) {
+        match self {
+            Connection::WsPlayer(_, ws) =>{
+                let _res = ws.close_with_reason(CloseCode::Normal, "Disconnect");
+            }
+            _ => (),
+        }
+    }
     /// Called when the server has requested shutdown.
-    fn shutdown(&self) {}
+    pub fn shutdown(&self) {
+        match self {
+            Connection::WsPlayer(_, ws) => ws.shutdown().unwrap_or(()),
+            _ => (),
+        }
+    }
     /// Called when this conntion is getting dropped.
     /// or when closed from the other end.
-    fn destroy(&self) {}
-}
-
-impl Connection for usize {
-    fn send(&self, action: &Action) -> Result {
-        Err(Error::NoConnection)
-    }
-    fn player_id(&self) -> usize {
-        *self
-    }
-}
-impl Connection for (usize, WsSender) {
-    fn send(&self, action: &Action) -> Result {
-        let message = action.encode().map_err(|e| Error::Encoding(0))?;
-        Ok(self.1.send(message).map_err(|e| Error::Sending(1))?)
-    }
-    fn player_id(&self) -> usize {
-        self.0
-    }
-    fn disconnect(&self) {
-        self.1.close(CloseCode::Normal).unwrap_or(())
-    }
-    fn shutdown(&self) {
-        self.1.shutdown().unwrap_or(())
-    }
+    pub fn destroy(&self) {}
 }

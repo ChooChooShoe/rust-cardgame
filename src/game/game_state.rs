@@ -30,7 +30,7 @@ impl Game {
             for x in 0..player_count {
                 players.push(Player::new(x, format!("Local Player #{}", x + 1)));
             }
-            connections.push(Connection::from_name("Local Player"));
+            connections.push(Connection::from_empty(0));
         } else {
             for x in 0..player_count {
                 players.push(Player::new(x, format!("Player #{}", x + 1)));
@@ -118,16 +118,17 @@ impl Game {
         }
     }
 
-    pub fn send_all_action(&mut self, action: &Action) {
+    pub fn send_all_action(&mut self, action: &Action) -> NetResult<()>  {
         for conn in self.connections() {
             match conn.send(action) {
                 Ok(_) => (),
-                Err(_) => break,
+                Err(e) => return Err(e),
             }
         }
+        Ok(())
     }
     // Sends a game action to the player over their connection.
-    pub fn send_action(&mut self, client_id: usize, action: &Action) -> NetResult {
+    pub fn send_action(&mut self, client_id: usize, action: &Action) -> NetResult<()> {
         self.connection(client_id).send(action)
     }
 
