@@ -81,6 +81,10 @@ impl Game {
         self.network_mode
     }
 
+    pub fn has_authority(&self) -> bool {
+        self.network_mode.is_server()
+    }
+
     pub fn connections(&mut self) -> &mut [Connection] {
         &mut self.connections
     }

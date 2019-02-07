@@ -23,7 +23,6 @@ pub struct Stage {
     settings: GameSettings,
     state: State,
     action_queue: VecDeque<(Actor, Action)>,
-    state_end_time: Instant,
 }
 
 impl Stage {
@@ -34,7 +33,6 @@ impl Stage {
             settings: settings,
             state: State::Waiting,
             action_queue: VecDeque::new(),
-            state_end_time: Instant::now(),
         };
         (send, stage)
     }
@@ -47,12 +45,14 @@ impl Stage {
     pub fn run(mut self) {
         let mut game = Game::new(&self.settings);
 
-        info!("Running core game loop as {:?}", game.network_mode());
-
         self.state.enter(&mut game);
-        self.inner_loop(&mut game).unwrap_or_else(|e| warn!("Stage loop failed: {}", e));
+        let res = self.inner_loop(&mut game).unwrap_or_else(|e| {
+            warn!("Stage loop failed: {}", e);
+            GameResults::NetError()
+        });
         self.state.exit(&mut game);
 
+        info!("Game Complete: {:?}", res);
         // All connections are closed after the game.
         // When client only the connection to the server is closed.
         for conn in game.connections() {
@@ -61,15 +61,14 @@ impl Stage {
     }
     /// Reads all from recv. Returns `Ok(())` if everything was read.
     /// Returns `Err(RecvError)` if the channel was disconnected
-    fn inner_loop(&mut self, game: &mut Game) -> Result<(), NetError> {
+    fn inner_loop(&mut self, game: &mut Game) -> Result<GameResults, NetError> {
         let mut count = 0;
-        self.state_end_time = Instant::now() + self.state.get_duration();
         loop {
             debug!("Loop Count: {}", count);
-            if self.state.is_done() {
-                return Ok(());
+            if let State::Done(res) = self.state {
+                return Ok(res);
             }
-            // self.process_actions(game)?;
+            self.process_actions(game)?;
 
             self.get_recv(game)?;
 
@@ -77,17 +76,17 @@ impl Stage {
         }
     }
 
-
-    /// Reads all from recv. Returns `Ok(())` if everything was read.
+    /// Reads all from recv. Returns `Ok(())` when there are actions to proccess or the state was changed.
     /// Returns `Err(RecvError)` if the channel was disconnected
     fn get_recv(&mut self, mut game: &mut Game) -> Result<(), NetError> {
         loop {
-            if self.state.is_done() {
-                return Ok(());
-            }
-            self.process_actions(game)?;
-
-            let relay = self.recv.recv_timeout(game.timer.time_left());
+            let relay = if self.state.should_wait_for_timeout() {
+                self.recv.recv_timeout(game.timer.time_left())
+            } else {
+                self.recv
+                    .try_recv()
+                    .map_err(|_e| RecvTimeoutError::Disconnected)
+            };
 
             match relay {
                 Ok(NetRelay::Open(index, connection)) => {
@@ -102,38 +101,41 @@ impl Stage {
                     debug_assert!(game.network_mode().is_server());
                     debug_assert_eq!(State::Waiting, self.state);
                     self.state.transition_to(&mut game, State::GameSetup);
+                    break;
                 }
                 Ok(NetRelay::Shutdown(_player_id)) => {
                     self.state
                         .transition_to(game, State::Done(GameResults::StopAndExit));
+                    break;
                 }
                 Ok(NetRelay::Act(player_id, mut action)) => {
                     let mut actor = Actor::User(player_id);
                     if self.validate_action(&mut actor, &mut action).is_ok() {
                         self.action_queue.push_back((actor, action));
+                        break;
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => {
                     info!("Timeout");
                     let next = self.state.timeout(game);
                     self.state.transition_to(game, next);
+                    break;
                 }
                 Err(RecvTimeoutError::Disconnected) => {
                     return Err(NetError::Disconnected);
-                }
-                // Err(TryRecvError::Empty) => {
-                //     info!("Sleep");
-                //     std::thread::sleep(Duration::from_nanos(100_000_000));
-                // }
-                // Err(TryRecvError::Disconnected) => {
-                //     return Err(NetError::Disconnected);
-                // }
-                // Err(RecvError) => {
-                //     return Err(NetError::Disconnected);
-                // }
+                } // Err(TryRecvError::Empty) => {
+                  //     info!("Sleep");
+                  //     std::thread::sleep(Duration::from_nanos(100_000_000));
+                  // }
+                  // Err(TryRecvError::Disconnected) => {
+                  //     return Err(NetError::Disconnected);
+                  // }
+                  // Err(RecvError) => {
+                  //     return Err(NetError::Disconnected);
+                  // }
             }
-            
         }
+        Ok(())
     }
     fn validate_action(&mut self, actor: &mut Actor, action: &mut Action) -> Result<(), ()> {
         Ok(())
@@ -147,7 +149,7 @@ impl Stage {
                 Ok(OkCode::ChangeState) => {
                     let next = self.state.next(game);
                     self.state.transition_to(game, next);
-                },
+                }
                 Ok(OkCode::Done) => (),
                 Ok(code) => {
                     let a = Action::OnResponceOk(code);
@@ -163,9 +165,7 @@ impl Stage {
         Ok(())
     }
 
-    fn get_timeout(&self) {
-
-    }
+    fn get_timeout(&self) {}
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
@@ -184,6 +184,7 @@ pub enum GameResults {
     StopAndExit,
     NotAllPlayersReady,
     NotAllPlayersConncted,
+    NetError(),
 }
 
 impl State {
@@ -194,13 +195,16 @@ impl State {
             false
         }
     }
+    pub fn should_wait_for_timeout(&self) -> bool {
+        self.get_duration() != Duration::new(0, 0)
+    }
     pub fn get_duration(&self) -> Duration {
         match self {
             State::Waiting => Duration::from_secs(15),
             State::GameSetup => Duration::from_millis(50),
             State::GameStart => Duration::from_millis(50),
             State::PlayerTurn(turn) => turn.get_duration(),
-            State::Done(_) => Duration::from_millis(10),
+            State::Done(_) => Duration::new(0, 0),
         }
     }
 

@@ -51,7 +51,7 @@ impl Turn {
     pub fn get_duration(&self) -> Duration {
         match self.phase {
             Phase::Play => Duration::from_secs(30),
-            _ => Duration::from_millis(200),
+            _ => Duration::from_millis(0),
         }
     }
 
