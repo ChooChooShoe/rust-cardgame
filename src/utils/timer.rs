@@ -28,3 +28,8 @@ impl Timer {
         thread::sleep(self.time_left())
     }
 }
+impl Default for Timer {
+    fn default() -> Self {
+        Timer::from_duration(Duration::new(0, 0))
+    }
+}

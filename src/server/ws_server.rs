@@ -1,5 +1,6 @@
-use crate::game::core::{self, Event};
+use crate::game::stage::NetRelay;
 use crate::game::Game;
+use crate::game::{GameSettings, Stage};
 use crate::net::NetworkMode;
 use crate::server::{ServerConfig, ServerHandle};
 use std::net::ToSocketAddrs;
@@ -11,9 +12,10 @@ use ws::{Builder, Factory};
 
 pub fn listen<A: ToSocketAddrs>(ip: A, id: usize, max_players: usize) {
     let settings = ServerConfig::from_disk().into();
-    let (send, recv) = channel();
+    let game_settings = GameSettings::new(id, max_players, NetworkMode::Server);
+    let (send, stage) = Stage::build(game_settings);
     let builder = thread::Builder::new().name(format!("server_{}", id));
-    let thread_handle = builder.spawn(move || core::run(recv, Game::new(id, max_players, NetworkMode::Server)));
+    let thread_handle = builder.spawn(move || stage.run_authority());
 
     let factory = ServerFactory {
         sender: send,
@@ -21,20 +23,18 @@ pub fn listen<A: ToSocketAddrs>(ip: A, id: usize, max_players: usize) {
         max_players,
         next_player_id: 0,
     };
-    let ws = Builder::new()
-        .with_settings(settings)
-        .build(factory)
-        .unwrap();
+    let ws = Builder::new().with_settings(settings).build(factory);
 
-    ws.listen(ip)
+    ws.unwrap()
+        .listen(ip)
         .expect("Couldn't listen or connection panic! for server.");
-    
+
     info!("Waiting for server game thread to close.");
     thread_handle.unwrap().join().unwrap();
     info!("Server Done!");
 }
 struct ServerFactory {
-    sender: TSender<Event>,
+    sender: TSender<NetRelay>,
     active_connections: usize,
     max_players: usize,
     next_player_id: usize,
@@ -70,7 +70,8 @@ impl Factory for ServerFactory {
     }
     fn on_shutdown(&mut self) {
         info!("ServerFactory received WebSocket shutdown request.");
-        if self.sender.send(Event::StopAndExit()).is_ok() {
+        let ev = NetRelay::Shutdown(std::usize::MAX);
+        if self.sender.send(ev).is_ok() {
             info!("Sending 'StopAndExit' to core.")
         }
     }

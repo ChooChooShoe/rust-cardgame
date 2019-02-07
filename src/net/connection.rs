@@ -12,6 +12,7 @@ pub type Result<T> = StdResult<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     NoConnection,
+    Disconnected,
     Encoding(ErrorKind),
     Sending(WsError),
 }
@@ -32,6 +33,7 @@ impl StdError for Error {
             Error::Encoding(_) => "Encoding Error",
             Error::Sending(_) => "Sending Error",
             Error::NoConnection => "No Connection",
+            Error::Disconnected => "Disconnected",
         }
     }
     fn cause(&self) -> Option<&StdError> {
@@ -39,6 +41,7 @@ impl StdError for Error {
             Error::Encoding(e) => Some(e),
             Error::Sending(e) => Some(e),
             Error::NoConnection => None,
+            Error::Disconnected => None,
         }
     }
 }
@@ -83,7 +86,7 @@ impl Connection {
         }
     }
     /// Called to make a manual disconnect.
-    pub fn disconnect(&self) {
+    pub fn disconnect(&mut self) {
         match self {
             Connection::WsPlayer(_, ws) =>{
                 let _res = ws.close_with_reason(CloseCode::Normal, "Disconnect");
@@ -92,7 +95,7 @@ impl Connection {
         }
     }
     /// Called when the server has requested shutdown.
-    pub fn shutdown(&self) {
+    pub fn shutdown(&mut self) {
         match self {
             Connection::WsPlayer(_, ws) => ws.shutdown().unwrap_or(()),
             _ => (),
@@ -100,5 +103,5 @@ impl Connection {
     }
     /// Called when this conntion is getting dropped.
     /// or when closed from the other end.
-    pub fn destroy(&self) {}
+    pub fn destroy(&mut self) {}
 }

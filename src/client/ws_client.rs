@@ -1,5 +1,5 @@
-use crate::game::core::{self, Event};
-use crate::game::{Action, Game, PlayerId};
+use crate::game::stage::{NetRelay, Stage};
+use crate::game::{Action, Game, GameSettings, PlayerId};
 use crate::net::{Codec, Connection, NetworkMode, PROTOCOL, VERSION_HEADER};
 use std::borrow::Borrow;
 use std::error::Error as StdError;
@@ -12,11 +12,11 @@ use ws::{
     self, CloseCode, Error, ErrorKind, Handler, Handshake, Message, Request, Response, Result,
 };
 
-pub fn connect<U: Borrow<str>>(url: U, id: usize, max_player: usize) {
-    let (send, recv) = channel();
+pub fn connect<U: Borrow<str>>(url: U, id: usize, max_players: usize) {
+    let game_settings = GameSettings::new(id, max_players, NetworkMode::Client);
+    let (send, stage) = Stage::build(game_settings);
     let builder = thread::Builder::new().name(format!("client_{}", id));
-    let thread_handle =
-        builder.spawn(move || core::run(recv, Game::new(id, max_player, NetworkMode::Client)));
+    let thread_handle = builder.spawn(move || stage.run());
 
     ws::connect(url, |out: WsSender| Client::new(out, send.clone()))
         .expect("Couldn't begin connection to remote server and/or create a local client");
@@ -28,12 +28,12 @@ pub fn connect<U: Borrow<str>>(url: U, id: usize, max_player: usize) {
 
 pub struct Client {
     ws_out: WsSender,
-    core: TSender<Event>,
+    core: TSender<NetRelay>,
     player_id: PlayerId,
 }
 
 impl Client {
-    fn new(out: WsSender, core: TSender<Event>) -> Client {
+    fn new(out: WsSender, core: TSender<NetRelay>) -> Client {
         Client {
             ws_out: out,
             core,
@@ -58,7 +58,7 @@ impl Handler for Client {
                 let a = Action::ChangePlayerId(self.player_id, to);
                 self.player_id = to;
                 // still passed to the core.
-                let ev = Event::OnPlayerAction(self.player_id, a);
+                let ev = NetRelay::Act(self.player_id, a);
                 self.core.send(ev).map_err(thread_err)
             }
             Action::Text(t) => {
@@ -67,7 +67,7 @@ impl Handler for Client {
             }
             _ => {
                 // Any other action is sent to core thread.
-                let ev = Event::OnPlayerAction(self.player_id, action);
+                let ev = NetRelay::Act(self.player_id, action);
                 self.core.send(ev).map_err(thread_err)
             }
         }
@@ -78,7 +78,7 @@ impl Handler for Client {
             debug!("Connection with {} now open", addr);
         }
         let connection = Connection::from_network(self.player_id, self.ws_out.clone());
-        let ev = Event::OpenConnection(0, connection);
+        let ev = NetRelay::Open(0, connection);
 
         self.core.send(ev).map_err(thread_err)
     }
@@ -88,12 +88,12 @@ impl Handler for Client {
             "Client #{} closing do to ({:?}) '{}'",
             self.player_id, code, reason
         );
-        let event = Event::CloseConnection(0);
+        let ev = NetRelay::Close(0);
         // Try to send and ignore any error.
-        self.core.send(event).unwrap_or(());
-        if self.core.send(Event::StopAndExit()).is_err() {
-            warn!("Unable to communicate between threads on close")
-        }
+        self.core.send(ev).unwrap_or(());
+        // if self.core.send(Event::Shutdown()).is_err() {
+        //     warn!("Unable to communicate between threads on close")
+        // }
     }
     #[inline]
     fn on_shutdown(&mut self) {
@@ -101,8 +101,8 @@ impl Handler for Client {
             "Client #{} received WebSocket shutdown request.",
             self.player_id
         );
-        if self.core.send(Event::StopAndExit()).is_err() {
-            warn!("Unable to communicate between threads on shutdown")
+        if let Err(e) = self.core.send(NetRelay::Shutdown(self.player_id)) {
+            warn!("{}", e)
         }
     }
 

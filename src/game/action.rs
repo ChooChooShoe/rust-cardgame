@@ -1,5 +1,5 @@
 use crate::entity::card::CardKey;
-use crate::game::action_result::{Error, OkCode, Result};
+pub use crate::game::action_result::{Error, OkCode, Result};
 use crate::game::{Deck, Game, Phase, PlayerId, Turn};
 use crate::net::Connection;
 use crate::utils::Input;
@@ -14,7 +14,7 @@ pub enum Actor {
 impl Actor {
     pub fn id(&self) -> usize {
         match self {
-            Actor::Authority() => 0,
+            Actor::Authority() => std::usize::MAX,
             Actor::User(id) => *id,
             Actor::Card(id) => panic!(),
         }
@@ -80,18 +80,18 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn perform(self, game: &mut Game, sender: Actor) -> Result {
+    pub fn perform(self, game: &mut Game, sender: &Actor) -> Result {
         if game.network_mode().is_client() {
             self.client_perform(game, sender) // sender is *not* always 0
         } else {
             self.server_perform(game, sender)
         }
     }
-    pub fn undo(self, _game: &mut Game, _sender: Actor) -> Result {
+    pub fn undo(self, _game: &mut Game, _sender: &Actor) -> Result {
         Err(Error::NotSupported)
     }
 
-    fn common_perform(self, game: &mut Game, sender: Actor) -> Result {
+    fn common_perform(self, game: &mut Game, sender: &Actor) -> Result {
         match self {
             Action::OnResponceOk(OkCode::Done) => Ok(OkCode::Done),
             Action::OnResponceOk(_ok_code) => Ok(OkCode::Done),
@@ -103,7 +103,7 @@ impl Action {
         }
     }
 
-    fn server_perform(self, game: &mut Game, sender: Actor) -> Result {
+    fn server_perform(self, game: &mut Game, sender: &Actor) -> Result {
         match self {
             Action::ChangePlayerId(_from, _to) => Err(Error::NotSupported),
             Action::EndTurn(p) => {
@@ -144,7 +144,7 @@ impl Action {
     fn server_undo(self, _game: &mut Game) -> Result {
         Err(Error::NotSupported)
     }
-    fn client_perform(self, game: &mut Game, sender: Actor) -> Result {
+    fn client_perform(self, game: &mut Game, sender: &Actor) -> Result {
         match self {
             Action::ChangePlayerId(_from, to) => {
                 game.local_player_id = to;

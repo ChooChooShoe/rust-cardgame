@@ -1,5 +1,5 @@
-use crate::game::core::Event;
-use crate::game::{Action, PlayerId};
+use crate::game::stage::NetRelay;
+use crate::game::{Action, NetPlayerId};
 use crate::net::{Codec, Connection};
 use crate::net::{PROTOCOL, VERSION_HEADER};
 use crate::server::ws_server::Role;
@@ -8,14 +8,14 @@ use std::sync::mpsc::Sender as TSender;
 use ws::util::Timeout;
 use ws::util::Token;
 use ws::{
-    Builder, CloseCode, Error, ErrorKind, Frame, Handler, Handshake, Message, Request,
-    Response, Result, Sender as WsSender,
+    Builder, CloseCode, Error, ErrorKind, Frame, Handler, Handshake, Message, Request, Response,
+    Result, Sender as WsSender,
 };
 /// Represents one player's connection to us (the ServerHandle)
 pub struct ServerHandle {
     pub ws: WsSender,
-    core: TSender<Event>,
-    pub player_id: PlayerId,
+    core: TSender<NetRelay>,
+    pub player_id: NetPlayerId,
     role: Role,
     expire_timeout: Option<Timeout>,
     mulligin_timeout: Option<Timeout>,
@@ -23,8 +23,8 @@ pub struct ServerHandle {
 impl ServerHandle {
     pub fn new(
         ws: WsSender,
-        core: TSender<Event>,
-        player_id: PlayerId,
+        core: TSender<NetRelay>,
+        player_id: NetPlayerId,
         role: Role,
     ) -> ServerHandle {
         ServerHandle {
@@ -76,8 +76,8 @@ impl Handler for ServerHandle {
                 let a = Action::ChangePlayerId(0, self.player_id);
                 conn.send(&a).map_err(thread_err)?;
 
-                let event = Event::OpenConnection(self.player_id, conn);
-                self.core.send(event).map_err(thread_err)
+                let ev = NetRelay::Open(self.player_id, conn);
+                self.core.send(ev).map_err(thread_err)
             }
             Role::GameFull => self.ws.close(CloseCode::Normal),
             Role::Spectator => Err(Error::new(
@@ -92,9 +92,8 @@ impl Handler for ServerHandle {
             "Connection closing due to ({:?}) {} for player_id {}",
             code, reason, self.player_id
         );
-        let event = Event::CloseConnection(self.player_id);
-        if self.core.send(event).is_err() {
-            warn!("Unable to communicate between threads on close")
+        if let Err(e) = self.core.send(NetRelay::Close(self.player_id)) {
+            warn!("{}", e)
         }
     }
 
@@ -116,7 +115,7 @@ impl Handler for ServerHandle {
             }
             _ => {
                 // Any other action is sent to core thread.
-                let ev = Event::OnPlayerAction(self.player_id, action);
+                let ev = NetRelay::Act(self.player_id, action);
                 self.core.send(ev).map_err(thread_err)
             }
         }
@@ -144,14 +143,10 @@ impl Handler for ServerHandle {
             }
             EXPIRE => self.ws.close(CloseCode::Away),
             MULIGIN => {
-                let ev =
-                    Event::OnPlayerAction(self.player_id, Action::MuliginResult { swap: false });
+                let ev = NetRelay::Act(self.player_id, Action::MuliginResult { swap: false });
                 self.core.send(ev).map_err(thread_err)
             }
-            GAMESTART => self
-                .core
-                .send(Event::AllPlayersConnected())
-                .map_err(thread_err),
+            GAMESTART => self.core.send(NetRelay::Start()).map_err(thread_err),
             _ => Err(Error::new(
                 ErrorKind::Internal,
                 "Invalid timeout token encountered!",
