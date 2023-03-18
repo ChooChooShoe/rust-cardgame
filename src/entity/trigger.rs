@@ -66,7 +66,7 @@ impl<'a> Trigger<'a> {
 }
 use std::sync::RwLock;
 
-type Callback = Box<Fn(&mut Trigger) + 'static + Sync + Send>;
+type Callback = Box<dyn Fn(&mut Trigger) + 'static + Sync + Send>;
 
 lazy_static! {
     static ref INSTANCE: RwLock<Dispatch> = RwLock::new(Dispatch::new());

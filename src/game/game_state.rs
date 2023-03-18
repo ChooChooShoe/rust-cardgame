@@ -138,7 +138,7 @@ impl Game {
         for p in self.players() {
             p.set_deck(crate::game::Deck::new());
             let mut deck = p.zones.deck.as_mut_slice();
-            rng.shuffle(&mut deck);
+            // TODO rng.shuffle(&mut deck);
         }
     }
 

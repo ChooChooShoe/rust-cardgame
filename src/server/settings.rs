@@ -87,6 +87,7 @@ impl Into<Settings> for ServerConfig {
             fragments_capacity: self.fragments_capacity,
             fragments_grow: self.fragments_grow,
             fragment_size: self.fragment_size,
+            max_fragment_size: 256,
             in_buffer_capacity: self.in_buffer_capacity,
             in_buffer_grow: self.in_buffer_grow,
             out_buffer_capacity: self.out_buffer_capacity,
